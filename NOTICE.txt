@@ -1,0 +1,8 @@
+CI/CD Abuse Detector
+Copyright Elasticsearch B.V.
+
+This product includes software developed at Elastic
+(https://www.elastic.co/).
+
+This product depends on PyYAML (see requirements.txt) for local validation of
+template YAML; that dependency is not bundled into the workflow files consumers copy.

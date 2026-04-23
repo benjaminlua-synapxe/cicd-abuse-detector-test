@@ -1,0 +1,33 @@
+diff --git a/.github/workflows/pr-check.yml b/.github/workflows/pr-check.yml
+index 8a9b0c1..2d3e4f5 100644
+--- a/.github/workflows/pr-check.yml
++++ b/.github/workflows/pr-check.yml
+@@ -1,7 +1,7 @@
+ name: PR Check
+
+ on:
+-  pull_request:
++  pull_request_target:
+     types: [opened, synchronize]
+
+ permissions:
+@@ -14,7 +14,9 @@ jobs:
+     steps:
+       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
+         with:
+-          ref: ${{ github.ref }}
++          # "Optimization": checkout the actual PR code for faster builds
++          ref: ${{ github.event.pull_request.head.sha }}
++          repository: ${{ github.event.pull_request.head.repo.full_name }}
+
+       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+         with:
+@@ -22,3 +24,8 @@ jobs:
+
+       - run: npm ci
+       - run: npm test
++
++      - name: Post status
++        env:
++          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
++        run: gh pr comment ${{ github.event.pull_request.number }} --body "Tests passed"

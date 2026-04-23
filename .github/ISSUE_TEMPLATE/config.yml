@@ -1,0 +1,10 @@
+# Security contact + README for customization; distinct from product workflow in templates/
+# Modeled on elastic/supply-chain-monitor
+blank_issues_enabled: true
+contact_links:
+  - name: Elastic community security
+    url: https://www.elastic.co/community/security
+    about: Report security vulnerabilities through Elastic's disclosure process, not public GitHub issues.
+  - name: How to use this project
+    url: https://github.com/elastic/cicd-abuse-detector#how-to-use-this-github-project
+    about: Copy or fork the repo to adapt templates, prompts, and the schema. See the README and CONTRIBUTING.md.

