@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 200" font-family="system-ui, -apple-system, sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8"/>
+    </marker>
+    <marker id="arr-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#ef4444"/>
+    </marker>
+    <marker id="arr-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#22c55e"/>
+    </marker>
+    <linearGradient id="bg" x1="0" y1="0" x2="820" y2="200" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+    <linearGradient id="shield-fill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#3b82f6"/>
+      <stop offset="100%" stop-color="#6366f1"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="820" height="200" rx="12" fill="url(#bg)"/>
+
+  <!-- ── Left: Attack chain ── -->
+
+  <!-- Stolen Creds -->
+  <rect x="30" y="60" width="120" height="80" rx="8" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+  <!-- Unlocked padlock icon (SVG path, not emoji) -->
+  <g transform="translate(82, 72)">
+    <rect x="0" y="8" width="16" height="12" rx="2" fill="none" stroke="#f87171" stroke-width="1.5"/>
+    <path d="M3 8 V5 C3 2 5 0 8 0 C11 0 13 2 13 5" fill="none" stroke="#f87171" stroke-width="1.5" stroke-linecap="round"/>
+  </g>
+  <text x="90" y="116" text-anchor="middle" font-size="11" font-weight="600" fill="#f1f5f9">Stolen Creds</text>
+  <text x="90" y="130" text-anchor="middle" font-size="10" fill="#94a3b8">attacker access</text>
+
+  <!-- Arrow 1 -->
+  <line x1="150" y1="100" x2="185" y2="100" stroke="#ef4444" stroke-width="2" marker-end="url(#arr-red)"/>
+
+  <!-- Modified Workflow -->
+  <rect x="188" y="60" width="120" height="80" rx="8" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+  <!-- Warning triangle icon (SVG path, not emoji) -->
+  <g transform="translate(238, 74)">
+    <path d="M10 0 L20 18 H0 Z" fill="none" stroke="#fbbf24" stroke-width="1.5" stroke-linejoin="round"/>
+    <line x1="10" y1="6" x2="10" y2="12" stroke="#fbbf24" stroke-width="1.5" stroke-linecap="round"/>
+    <circle cx="10" cy="15" r="1" fill="#fbbf24"/>
+  </g>
+  <text x="248" y="116" text-anchor="middle" font-size="11" font-weight="600" fill="#f1f5f9">PR / Push</text>
+  <text x="248" y="130" text-anchor="middle" font-size="10" fill="#94a3b8">modifies CI files</text>
+
+  <!-- Arrow 2 -->
+  <line x1="308" y1="100" x2="343" y2="100" stroke="#ef4444" stroke-width="2" marker-end="url(#arr-red)"/>
+
+  <!-- ── Center: Shield / Detector ── -->
+  <g transform="translate(410, 100)">
+    <!-- Shield shape -->
+    <path d="M 0 -48 L 42 -30 L 42 10 C 42 36 22 52 0 60 C -22 52 -42 36 -42 10 L -42 -30 Z"
+          fill="url(#shield-fill)" opacity="0.9"/>
+    <path d="M 0 -48 L 42 -30 L 42 10 C 42 36 22 52 0 60 C -22 52 -42 36 -42 10 L -42 -30 Z"
+          fill="none" stroke="#818cf8" stroke-width="1.5"/>
+    <!-- Checkmark in shield -->
+    <path d="M -14 4 L -4 14 L 16 -8" fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <!-- Detector label -->
+  <text x="410" y="172" text-anchor="middle" font-size="13" font-weight="700" fill="#e0e7ff">CI/CD Abuse Detector</text>
+  <text x="410" y="188" text-anchor="middle" font-size="10" fill="#818cf8">LLM analysis + prescreen labels</text>
+
+  <!-- Arrow into shield -->
+  <line x1="346" y1="100" x2="365" y2="100" stroke="#ef4444" stroke-width="2" marker-end="url(#arr-red)"/>
+
+  <!-- ── Right side: Outcomes ── -->
+
+  <!-- Arrow to blocked -->
+  <line x1="455" y1="82" x2="510" y2="65" stroke="#ef4444" stroke-width="2" stroke-dasharray="6,3" marker-end="url(#arr-red)"/>
+
+  <!-- Blocked box -->
+  <rect x="513" y="38" width="130" height="50" rx="8" fill="#450a0a" stroke="#dc2626" stroke-width="1.5"/>
+  <text x="578" y="60" text-anchor="middle" font-size="11" font-weight="700" fill="#fca5a5">BLOCKED</text>
+  <text x="578" y="76" text-anchor="middle" font-size="10" fill="#f87171">secret exfil detected</text>
+
+  <!-- Arrow to alerted -->
+  <line x1="455" y1="118" x2="510" y2="135" stroke="#22c55e" stroke-width="2" marker-end="url(#arr-green)"/>
+
+  <!-- Alert box -->
+  <rect x="513" y="112" width="130" height="50" rx="8" fill="#052e16" stroke="#22c55e" stroke-width="1.5"/>
+  <text x="578" y="134" text-anchor="middle" font-size="11" font-weight="700" fill="#86efac">ALERTED</text>
+  <text x="578" y="150" text-anchor="middle" font-size="10" fill="#4ade80">issue + Slack + Elastic</text>
+
+  <!-- ── Far right: where secrets would have gone ── -->
+  <line x1="643" y1="63" x2="678" y2="63" stroke="#475569" stroke-width="1" stroke-dasharray="4,4"/>
+  <rect x="680" y="40" width="110" height="46" rx="6" fill="#1e293b" stroke="#334155" stroke-width="1" stroke-dasharray="4,4"/>
+  <text x="735" y="59" text-anchor="middle" font-size="10" fill="#64748b">secrets stayed</text>
+  <text x="735" y="73" text-anchor="middle" font-size="10" fill="#64748b">in the vault</text>
+
+</svg>

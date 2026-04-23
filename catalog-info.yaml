@@ -1,0 +1,24 @@
+# yaml-language-server: $schema=https://json.schemastore.org/catalog-info.json
+# Optional: Backstage / software-catalog metadata for organizations that ingest public repos.
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: cicd-abuse-detector
+  title: CI/CD Abuse Detector
+  description: >
+    LLM-assisted analysis templates for GitHub Actions, GitLab CI, and Azure Pipelines
+    to flag suspicious CI/CD configuration changes.
+  annotations:
+    github.com/project-slug: elastic/cicd-abuse-detector
+  links:
+    - url: https://github.com/elastic/cicd-abuse-detector
+      title: GitHub repository
+      icon: github
+  tags:
+    - security
+    - ci-cd
+spec:
+  type: library
+  lifecycle: production
+  owner: group:threat-research-and-detection-engineering
+  system: security

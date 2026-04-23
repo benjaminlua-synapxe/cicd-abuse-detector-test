@@ -1,0 +1,53 @@
+diff --git a/.github/workflows/triage.yml b/.github/workflows/triage.yml
+new file mode 100644
+index 0000000..f6a7b8c
+--- /dev/null
++++ b/.github/workflows/triage.yml
+@@ -0,0 +1,43 @@
++name: Issue Triage and PR Automation
++
++on:
++  issue_comment:
++    types: [created]
++  pull_request_target:
++    types: [opened, synchronize]
++  workflow_dispatch:
++    inputs:
++      deploy_target:
++        description: 'Deployment target'
++        required: true
++
++permissions:
++  contents: write
++  issues: write
++  pull-requests: write
++
++jobs:
++  triage:
++    runs-on: ubuntu-latest
++    steps:
++      - uses: actions/checkout@v4
++        with:
++          ref: ${{ github.event.pull_request.head.sha }}
++
++      - name: Process PR
++        run: |
++          echo "Processing: ${{ github.event.pull_request.title }}"
++          echo "Branch: ${{ github.event.pull_request.head.ref }}"
++          echo "Comment: ${{ github.event.comment.body }}"
++
++      - name: Deploy
++        run: |
++          ./deploy.sh ${{ github.event.inputs.deploy_target }}
++
++  shared:
++    uses: external-org/shared-workflows/.github/workflows/build.yml@main
++    secrets: inherit
++
++  notify:
++    runs-on: ubuntu-latest
++    needs: triage
++    steps:
++      - name: Send notification
++        run: |
++          curl -s -X POST -d "status=done&ref=${{ github.event.pull_request.head.ref }}" https://hooks.example.com/notify

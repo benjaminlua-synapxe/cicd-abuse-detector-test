@@ -1,0 +1,792 @@
+# CI/CD Abuse Detector — Azure DevOps Pipelines
+#
+# See docs/azure-devops.md for configuration and platform-specific caveats.
+
+trigger:
+  branches:
+    include:
+      - main
+      - master
+  paths:
+    include:
+      # Tier 1: Workflow and pipeline files
+      - .azure-pipelines/**
+      - .github/workflows/**
+      - .github/actions/**
+      - .gitlab-ci.yml
+      - .buildkite/**
+      - .circleci/**
+      - scripts/ci/**
+      - scripts/release/**
+      - scripts/build/**
+      - scripts/deploy/**
+      - scripts/sign*
+      - deploy/**
+      - build/**
+      # Tier 2: Build, packaging, and dependency files
+      - Dockerfile
+      - .dockerignore
+      - Makefile
+      - Rakefile
+      - Taskfile.yml
+      - Justfile
+      - setup.py
+      - setup.cfg
+      - pyproject.toml
+      - package.json
+      - package-lock.json
+      - pnpm-lock.yaml
+      - yarn.lock
+      - poetry.lock
+      - Pipfile.lock
+      - requirements*.txt
+      - Gemfile.lock
+      - Cargo.lock
+      - go.sum
+      - composer.lock
+      - .npmrc
+      - .yarnrc*
+      - "**/action.yml"
+      - "**/action.yaml"
+      # Tier 3: IDE and developer tooling configs
+      - .vscode/**
+      - .devcontainer/**
+
+pr:
+  branches:
+    include:
+      - main
+      - master
+  paths:
+    include:
+      # Same paths as trigger — keep in sync
+      - .azure-pipelines/**
+      - .github/workflows/**
+      - .github/actions/**
+      - .gitlab-ci.yml
+      - .buildkite/**
+      - .circleci/**
+      - scripts/ci/**
+      - scripts/release/**
+      - scripts/build/**
+      - scripts/deploy/**
+      - scripts/sign*
+      - deploy/**
+      - build/**
+      - Dockerfile
+      - .dockerignore
+      - Makefile
+      - Rakefile
+      - Taskfile.yml
+      - Justfile
+      - setup.py
+      - setup.cfg
+      - pyproject.toml
+      - package.json
+      - package-lock.json
+      - pnpm-lock.yaml
+      - yarn.lock
+      - poetry.lock
+      - Pipfile.lock
+      - requirements*.txt
+      - Gemfile.lock
+      - Cargo.lock
+      - go.sum
+      - composer.lock
+      - .npmrc
+      - .yarnrc*
+      - "**/action.yml"
+      - "**/action.yaml"
+      - .vscode/**
+      - .devcontainer/**
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+steps:
+  - checkout: self
+    fetchDepth: 0
+    persistCredentials: false
+    displayName: 'Checkout'
+
+  - task: NodeTool@0
+    inputs:
+      versionSpec: '22.x'
+    displayName: 'Setup Node.js'
+
+  - script: npm install -g @anthropic-ai/claude-code@2
+    displayName: 'Install Claude Code CLI'
+
+  - script: |
+      set -euo pipefail
+      mkdir -p .cicd-abuse-detector
+
+      # ── Determine diff range ──
+      # Azure DevOps predefined variables:
+      #   BUILD_REASON          → PullRequest | IndividualCI | BatchedCI
+      #   BUILD_SOURCEVERSION   → commit SHA
+      #   SYSTEM_PULLREQUEST_TARGETBRANCH → refs/heads/main (PR only)
+      #   BUILD_REQUESTEDFOR    → display name of trigger actor
+      #   BUILD_REQUESTEDFOREMAIL → email of trigger actor
+      if [ "$BUILD_REASON" = "PullRequest" ]; then
+        TARGET_REF="$SYSTEM_PULLREQUEST_TARGETBRANCH"
+        TARGET_BRANCH="${TARGET_REF#refs/heads/}"
+        # fetchDepth: 0 already fetches all branches (refs/heads/*) — no extra fetch needed
+        DIFF_BASE=$(git merge-base HEAD "origin/$TARGET_BRANCH")
+        DIFF_HEAD="HEAD"
+        CHANGE_PATH="pull_request"
+      else
+        DIFF_BASE="HEAD~1"
+        DIFF_HEAD="HEAD"
+        CHANGE_PATH="direct_push"
+        TARGET_BRANCH="$BUILD_SOURCEBRANCHNAME"
+      fi
+
+      # Persist for later steps (trusted prompt/schema retrieval)
+      echo "$DIFF_BASE" > .cicd-abuse-detector/diff_base.txt
+
+      # ── Get changed files and filter to CI/CD paths ──
+      git diff --name-only "$DIFF_BASE" "$DIFF_HEAD" > .cicd-abuse-detector/all_changed.txt || true
+
+      CI_PATTERNS='\.azure-pipelines/|\.github/workflows/|\.github/actions/|action\.yml$|action\.yaml$|\.gitlab-ci\.yml$'
+      CI_PATTERNS="${CI_PATTERNS}|\.vscode/|\.devcontainer/"
+      CI_PATTERNS="${CI_PATTERNS}|scripts/ci/|scripts/release/|scripts/build/|scripts/deploy/|scripts/sign"
+      CI_PATTERNS="${CI_PATTERNS}|deploy/|build/|\.buildkite/|\.circleci/"
+      CI_PATTERNS="${CI_PATTERNS}|Dockerfile|\.dockerignore$"
+      CI_PATTERNS="${CI_PATTERNS}|Makefile$|Rakefile$|Taskfile\.yml$|Justfile$"
+      CI_PATTERNS="${CI_PATTERNS}|setup\.py$|setup\.cfg$|pyproject\.toml$"
+      CI_PATTERNS="${CI_PATTERNS}|package\.json$|package-lock\.json$|pnpm-lock\.yaml$|yarn\.lock$"
+      CI_PATTERNS="${CI_PATTERNS}|poetry\.lock$|Pipfile\.lock$|requirements.*\.txt$"
+      CI_PATTERNS="${CI_PATTERNS}|Gemfile\.lock$|Cargo\.lock$|go\.sum$|composer\.lock$"
+      CI_PATTERNS="${CI_PATTERNS}|\.npmrc$|\.yarnrc|\.pip[/]|\.cargo/config"
+      CI_PATTERNS="${CI_PATTERNS}|build\.gradle(\.kts)?$|settings\.gradle(\.kts)?$|gradle\.properties$|gradle/wrapper/|Gemfile$"
+      CI_PATTERNS="${CI_PATTERNS}|CMakeLists\.txt$|CMakePresets\.json$"
+      CI_PATTERNS="${CI_PATTERNS}|Directory\.Build\.(props|targets)$|\.(cs|vb|fs)proj$"
+      CI_PATTERNS="${CI_PATTERNS}|flake\.nix$|flake\.lock$|default\.nix$|shell\.nix$"
+      CI_PATTERNS="${CI_PATTERNS}|terraform/|\.tf$|\.tfvars$|\.tftest\.hcl$|\.tf\.json$"
+      CI_PATTERNS="${CI_PATTERNS}|ansible/|playbooks/|roles/|group_vars/|host_vars/"
+      CI_PATTERNS="${CI_PATTERNS}|Pulumi\.yaml$|Pulumi\..*\.yaml$"
+      CI_PATTERNS="${CI_PATTERNS}|helm/|charts/|packer/|\.pkr\.hcl$"
+      CI_PATTERNS="${CI_PATTERNS}|^tools/"
+
+      # ADO leaves undefined variables as literal "$(VAR_NAME)" — strip those
+      EXTRA_PATHS="${CI_CD_ABUSE_EXTRA_PATHS:-}"
+      [[ "$EXTRA_PATHS" == *'$('* ]] && EXTRA_PATHS=""
+      if [ -n "$EXTRA_PATHS" ]; then
+        EXTRA_PATTERN=$(echo "$EXTRA_PATHS" | tr ',' '|' | sed 's/ //g')
+        CI_PATTERNS="${CI_PATTERNS}|${EXTRA_PATTERN}"
+      fi
+
+      INTERESTING=$(grep -E "$CI_PATTERNS" .cicd-abuse-detector/all_changed.txt || true)
+
+      if [ -z "$INTERESTING" ]; then
+        echo "No CI/CD-relevant files changed. Skipping."
+        echo "##vso[task.setvariable variable=has_interesting]false"
+        exit 0
+      fi
+
+      echo "$INTERESTING" > .cicd-abuse-detector/interesting_files.txt
+      echo "##vso[task.setvariable variable=has_interesting]true"
+
+      # ── Per-file diffs (head+tail to defeat truncation padding) ──
+      : > .cicd-abuse-detector/relevant.diff
+      : > .cicd-abuse-detector/full_signals.diff
+      TRUNCATED_FILES="[]"
+      while IFS= read -r file; do
+        FULL_DIFF=$(git diff --unified=3 "$DIFF_BASE" "$DIFF_HEAD" -- "$file" 2>/dev/null || true)
+        FULL_LEN=${#FULL_DIFF}
+
+        # Always write full diff for signal extraction (signals must not be evadable by padding)
+        printf '%s\n' "--- analyzing: $file ---" >> .cicd-abuse-detector/full_signals.diff
+        printf '%s\n' "$FULL_DIFF" >> .cicd-abuse-detector/full_signals.diff
+
+        # For LLM analysis: head+tail truncation preserves both ends
+        printf '%s\n' "--- analyzing: $file ---" >> .cicd-abuse-detector/relevant.diff
+        if [ "$FULL_LEN" -gt 10000 ]; then
+          printf '%s' "$FULL_DIFF" | head -c 7000 >> .cicd-abuse-detector/relevant.diff
+          printf '\n\n... [TRUNCATED: %d bytes total, showing first 7000 + last 3000] ...\n\n' "$FULL_LEN" >> .cicd-abuse-detector/relevant.diff
+          printf '%s' "$FULL_DIFF" | tail -c 3000 >> .cicd-abuse-detector/relevant.diff
+          TAIL_EXCERPT=$(printf '%s' "$FULL_DIFF" | tail -c 3000)
+          TRUNCATED_FILES=$(echo "$TRUNCATED_FILES" | jq --arg f "$file" --arg len "$FULL_LEN" --arg tail "$TAIL_EXCERPT" \
+            '. + [{"file": $f, "full_length": ($len | tonumber), "tail_excerpt": $tail}]')
+        else
+          printf '%s' "$FULL_DIFF" >> .cicd-abuse-detector/relevant.diff
+        fi
+        printf '\n' >> .cicd-abuse-detector/relevant.diff
+      done < .cicd-abuse-detector/interesting_files.txt
+      echo "$TRUNCATED_FILES" > .cicd-abuse-detector/truncated_files.json
+
+      echo "Analyzing $(wc -l < .cicd-abuse-detector/interesting_files.txt | tr -d ' ') CI/CD files"
+
+      # ── Enrich author context ──
+      ACTOR="$BUILD_REQUESTEDFOR"
+      ACTOR_EMAIL="${BUILD_REQUESTEDFOREMAIL:-}"
+
+      # ADO doesn't expose user creation dates via REST API without Graph permissions.
+      # Build a profile from what's available: git history + build metadata.
+      echo '{}' > .cicd-abuse-detector/author_profile.json
+      jq -n --arg login "$ACTOR" --arg email "$ACTOR_EMAIL" \
+        '{login: $login, email: $email}' > .cicd-abuse-detector/author_profile.json
+
+      # Prior commit check
+      PRIOR=0
+      if [ -n "$ACTOR_EMAIL" ]; then
+        PRIOR=$(git log --all --author="$ACTOR_EMAIL" --oneline 2>/dev/null | wc -l | tr -d ' ')
+      fi
+      jq --arg prior "$PRIOR" '. + {prior_commits_to_repo: ($prior | tonumber)}' \
+        .cicd-abuse-detector/author_profile.json > .cicd-abuse-detector/author_profile.tmp \
+        && mv .cicd-abuse-detector/author_profile.tmp .cicd-abuse-detector/author_profile.json
+
+      # ADO "membership" hint (weak; do not equate to GitHub org membership)
+      # The call uses System.AccessToken (the pipeline job identity), not the PR author.
+      # A successful Graph memberships response means the build service could invoke the API
+      # and returned a parseable body — it does **not** prove BUILD_REQUESTEDFOR is a project member
+      # (see Microsoft Graph memberships docs). Exposed as is_project_member for bundle parity; treat as low trust.
+      IS_PROJECT_MEMBER="false"
+      if [ -n "${SYSTEM_ACCESSTOKEN:-}" ]; then
+        ORG_URL="${SYSTEM_COLLECTIONURI}"
+        PROJECT="$SYSTEM_TEAMPROJECT"
+        MEMBER_RESP=$(curl -s -K <(printf -- '-u ":%s"' "$SYSTEM_ACCESSTOKEN") \
+          "${ORG_URL}${PROJECT}/_apis/graph/memberships/?api-version=7.1-preview.1" 2>/dev/null || echo "")
+        if echo "$MEMBER_RESP" | jq -e '.count' >/dev/null 2>&1; then
+          IS_PROJECT_MEMBER="true"
+        fi
+      fi
+      jq --arg member "$IS_PROJECT_MEMBER" '. + {is_project_member: ($member == "true")}' \
+        .cicd-abuse-detector/author_profile.json > .cicd-abuse-detector/author_profile.tmp \
+        && mv .cicd-abuse-detector/author_profile.tmp .cicd-abuse-detector/author_profile.json
+
+      # Backdated commit detection (defense evasion)
+      CURRENT_EPOCH=$(date +%s)
+      MAX_AGE_DAYS=90
+      OLDEST_ALLOWED=$((CURRENT_EPOCH - MAX_AGE_DAYS * 86400))
+      HAS_BACKDATED="false"
+      BACKDATED_DETAILS=""
+
+      while IFS='|' read -r commit_hash author_date committer_date _author_name; do
+        [ -z "$commit_hash" ] && continue
+        AUTHOR_EPOCH=$(date -d "$author_date" +%s 2>/dev/null || echo "0")
+        COMMITTER_EPOCH=$(date -d "$committer_date" +%s 2>/dev/null || echo "0")
+
+        if [ "$AUTHOR_EPOCH" -gt 0 ] && [ "$AUTHOR_EPOCH" -lt "$OLDEST_ALLOWED" ]; then
+          HAS_BACKDATED="true"
+          BACKDATED_DETAILS="${BACKDATED_DETAILS}commit ${commit_hash}: author_date=${author_date} (${MAX_AGE_DAYS}+ days old); "
+        fi
+
+        if [ "$AUTHOR_EPOCH" -gt 0 ] && [ "$COMMITTER_EPOCH" -gt 0 ]; then
+          DIFF_SECONDS=$((COMMITTER_EPOCH - AUTHOR_EPOCH))
+          if [ "$DIFF_SECONDS" -lt 0 ]; then DIFF_SECONDS=$((-DIFF_SECONDS)); fi
+          if [ "$DIFF_SECONDS" -gt 604800 ]; then
+            HAS_BACKDATED="true"
+            BACKDATED_DETAILS="${BACKDATED_DETAILS}commit ${commit_hash}: author/committer date gap=${DIFF_SECONDS}s; "
+          fi
+        fi
+      done < <(git log --format='%h|%ai|%ci|%an' "$DIFF_BASE".."$DIFF_HEAD" 2>/dev/null || true)
+
+      jq --argjson backdated "$HAS_BACKDATED" --arg details "$BACKDATED_DETAILS" \
+        '. + {has_backdated_commits: $backdated, backdated_commit_details: $details}' \
+        .cicd-abuse-detector/author_profile.json > .cicd-abuse-detector/author_profile.tmp \
+        && mv .cicd-abuse-detector/author_profile.tmp .cicd-abuse-detector/author_profile.json
+
+      if [ "$HAS_BACKDATED" = "true" ]; then
+        echo "##vso[task.logissue type=warning]Backdated commits detected: $BACKDATED_DETAILS"
+      fi
+
+      echo "Author context: $(jq -c . .cicd-abuse-detector/author_profile.json)"
+
+      # ── Signal extraction (runs against FULL diff to defeat truncation padding) ──
+      SIGNALS=""
+      check_signal() {
+        local name="$1" pattern="$2"
+        if grep -qE -- "$pattern" .cicd-abuse-detector/full_signals.diff 2>/dev/null; then
+          SIGNALS="${SIGNALS:+$SIGNALS, }$name"
+        fi
+      }
+
+      # Detect signals present in full diff but missing from truncated LLM excerpt
+      FULL_FILE_SIGNALS=""
+      check_tail_signal() {
+        local name="$1" pattern="$2"
+        if grep -qE -- "$pattern" .cicd-abuse-detector/full_signals.diff 2>/dev/null; then
+          if ! grep -qE -- "$pattern" .cicd-abuse-detector/relevant.diff 2>/dev/null; then
+            FULL_FILE_SIGNALS="${FULL_FILE_SIGNALS:+$FULL_FILE_SIGNALS, }$name"
+          fi
+        fi
+      }
+
+      # Prescreen enrichment: heuristic labels for the LLM bundle (not standalone detection; incomplete by design).
+      # Credential harvesting (threat #1)
+      check_signal "secrets_context"        '\$\{\{.*secrets\.'
+      check_signal "github_token"           '\$\{\{.*github\.token'
+      check_signal "actions_runtime_token"  'ACTIONS_RUNTIME_TOKEN'
+      check_signal "actions_id_token_url"   'ACTIONS_ID_TOKEN_REQUEST_URL'
+      check_signal "secrets_to_output"      'secrets\..*>>.*GITHUB_OUTPUT'
+      check_signal "secrets_to_env"         'secrets\..*>>.*GITHUB_ENV'
+      check_signal "cloud_auth_action"      'aws-actions/configure-aws-credentials|google-github-actions/auth|azure/login'
+      check_signal "gh_auth_token"          'gh auth token'
+      check_signal "cloud_cred_file_access" '\.aws/credentials|\.config/gcloud|\.azure/'
+      check_signal "ssh_key_access"         '\.ssh/id_|id_rsa|id_ed25519|id_ecdsa'
+      check_signal "env_secret_grep"        '(env|printenv).*grep'
+      check_signal "proc_self_environ"      '/proc/self/environ'
+      check_signal "k8s_secret_access"      'kubectl.*get.*secrets|/var/run/secrets/kubernetes\.io'
+
+      # Azure DevOps-specific credential signals
+      check_signal "system_access_token"   'System\.AccessToken|SYSTEM_ACCESSTOKEN'
+      check_signal "ado_service_connection" 'serviceConnection|azureSubscription'
+      check_signal "ado_spn_exposure"     'addSpnToEnvironment'
+      check_signal "ado_secure_file"     'DownloadSecureFile'
+      check_signal "persist_credentials" 'persistCredentials'
+      check_signal "task_source_patch"   '_tasks/.*\.js|\.js\.bak'
+      check_signal "ado_aws_task"        'AWSShellScript@'
+      check_signal "ado_sonar_task"      'SonarQubePrepare@'
+
+      # Privileged triggers
+      check_signal "pull_request_target"    'pull_request_target'
+      check_signal "workflow_run"           'workflow_run'
+
+      # Permission broadening
+      check_signal "write_all"              'write-all'
+      check_signal "id_token_write"         'id-token.*write'
+
+      # Runner targeting
+      check_signal "self_hosted"            'self-hosted'
+      check_signal "runner_tracking_tamper"  'RUNNER_TRACKING_ID'
+      check_signal "container_escape"       '--privileged.*-v.*/:/|--privileged.*--pid.*host'
+
+      # Exfiltration
+      check_signal "curl_wget"              '\b(curl|wget)\b'
+      # Alternate CLI downloaders (evade curl|wget grep; SmokedMeat-style variants)
+      check_signal "http_cli_download_alt"  '\baria2c\b|\baxel\b|\bhttpie\b|\bwget2\b|\bxh\b'
+      check_signal "node_global_fetch"     'globalThis\.fetch\s*\(|\bfetch\s*\([^)\n]*https?://'
+      check_signal "js_function_ctor_unsafe" '\bnew Function\s*\('
+      check_signal "perl_http_lite"         'HTTP::Tiny|LWP::|WWW::Mechanize'
+      check_signal "php_stream_remote"     'file_get_contents\s*\([^)\n]*https?://|readfile\s*\([^)\n]*https?://|\bphp\s+-r'
+      check_signal "go_run_remote"         '\bgo\s+run\s+https?://'
+      check_signal "deno_run_remote"       '\bdeno\s+(run|compile|install)\b.*https?://'
+      check_signal "bun_remote_https"      '\bbun\s+(x|run|install)\b.*https?://'
+      check_signal "uv_remote_https"       '\buv\s+(run|tool\s+run|pip(\s+install)?|add)\b.*https?://'
+      check_signal "cargo_install_git"     '\bcargo\s+(install|add)\b[^\n]*--git'
+      check_signal "node_dlx_remote_https" '\b(pnpm\s+dlx|yarn\s+dlx|yarn\s+npm\s+exec)\b.*https?://'
+      check_signal "nc_ncat"                '\b(nc|ncat|netcat|socat)\b'
+      check_signal "base64"                 '\bbase64\b'
+      check_signal "printenv"               '\bprintenv\b'
+      check_signal "sensitive_file_archive" '\b(tar|zip|gzip)\b.*(\.ssh|\.aws|\.gnupg|\.config/gcloud)'
+      check_signal "dns_exfil"              '\b(dig|nslookup)\b.*\$'
+
+      # Supply chain
+      check_signal "upload_artifact"        'upload-artifact'
+      check_signal "download_artifact"      'download-artifact'
+      check_signal "mutable_action_ref"     'uses:.*@(main|master|latest|dev)\b'
+      check_signal "checkout_ref"           'ref:.*github\.event\.pull_request\.head\.(sha|ref)'
+      check_signal "secret_scanning_tool"   '\b(trufflehog|gitleaks)\b'
+      check_signal "silent_npm_install"     'npm.*--loglevel.*(silent|error)|npm.*--no-save'
+      check_signal "mcp_config_write"       'claude_desktop_config|mcp\.json|\.continue/config'
+
+      # Python/alternative exfiltration (signal evasion countermeasures)
+      check_signal "python_urllib"           'urllib\.request|urllib\.urlopen|requests\.(get|post|put)'
+      check_signal "python_env_capture"     'os\.environ|dict\(os\.environ\)'
+      check_signal "python_base64"          'import base64|from base64'
+      check_signal "python_socket"          'socket\.(connect|getaddrinfo|create_connection)'
+      check_signal "bash_tcp_redirect"      '/dev/tcp/|/dev/udp/'
+      check_signal "openssl_encoding"       'openssl.*(enc|base64)'
+      check_signal "openssl_s_client"      'openssl s_client'
+      check_signal "xxd_encoding"           '\bxxd\b'
+
+      # Memory/process scanning
+      check_signal "proc_mem_read"          '/proc/.*mem\b'
+
+      # Dangerous triggers
+      check_signal "issue_comment_trigger"  'issue_comment'
+
+      # External script execution
+      check_signal "curl_pipe_bash"         '(\bcurl\b|\bwget2?\b).*\|.*(ba)?sh'
+
+      # Dependency installation changes
+      check_signal "dependency_install_change" 'npm install|yarn add|pip install|poetry add|gem install|cargo install|go install'
+
+      # Packaging manipulation
+      check_signal "postinstall_script"    '"(pre|post)install"'
+      check_signal "setup_py_command"       'cmdclass|install_requires|setup\(|subprocess'
+      check_signal "lockfile_registry_swap" 'resolved.*https?://[^r]|registry.*https?://[^r]|registry\.npmjs\.org.*replaced'
+
+      # Nord-stream / log-based exfiltration
+      check_signal "double_base64"         'base64.*\|.*base64'
+      check_signal "env_null_dump"         'env -0'
+
+      # IDE config poisoning (Contagious Interview / Lazarus)
+      check_signal "curl_pipe_node"        '(\bcurl\b|\bwget2?\b).*\|.*node'
+      check_signal "vscode_auto_task"      'runOn.*folderOpen'
+      check_signal "hidden_ide_config"     '\*\*/\.vscode.*true'
+      check_signal "eval_remote_code"      '\beval\('
+
+      # GITHUB_ENV / GITHUB_PATH injection (cross-platform awareness)
+      check_signal "github_env_write"     '>>\s*\$?\{?GITHUB_ENV\}?'
+      check_signal "github_path_write"    '>>\s*\$?\{?GITHUB_PATH\}?'
+      check_signal "ld_preload"           'LD_PRELOAD'
+
+      # Devcontainer lifecycle attacks
+      check_signal "devcontainer_lifecycle" 'postCreateCommand|postStartCommand|postAttachCommand|onCreateCommand|initializeCommand'
+      check_signal "docker_socket_mount"  'docker\.sock|/var/run/docker'
+
+      # Script injection via untrusted context in run: blocks
+      check_signal "context_injection"    '\$\{\{.*github\.event\.(pull_request\.(title|body|head\.(ref|sha))|issue\.(title|body)|comment\.body|head_commit\.message)'
+      check_signal "dispatch_input_injection" 'github\.event\.inputs\.'
+
+      # Persistence and privilege
+      check_signal "schedule_trigger"     '\bschedule:'
+      check_signal "contents_write"       'contents:\s*write'
+      check_signal "secrets_inherit"      'secrets:\s*inherit'
+
+      # GitHub App token theft
+      check_signal "github_app_token"    'create-github-app-token|APP_PRIVATE_KEY'
+
+      # Cross-repo secret sharing
+      check_signal "cross_repo_dispatch"  'repository-dispatch|repository:.*\w+/\w+'
+      check_signal "action_secret_input"  'with:[\s\S]{0,200}secrets\.'
+
+      # Command obfuscation / evasion
+      check_signal "hex_decode"           'xxd -r|\\x[0-9a-f]{2}'
+      check_signal "printf_decode"        "printf.*\\\\x|printf.*\$'\\\\x"
+      check_signal "rev_obfuscation"      '\brev\b.*\||\|.*\brev\b'
+      check_signal "variable_cmd_exec"    '\$\w+\s+-[sS].*POST|\$\w+.*-d.*\$|\$\(\w+\)'
+      # SmokedMeat-style branch/title constraints: spaces replaced with ${IFS}
+      check_signal "bash_ifs_whitespace"  '\$\{IFS\}'
+      # SmokedMeat rye: sandbox bypass via mainModule (not only direct require)
+      check_signal "node_main_module_bypass" 'process\.mainModule\.require'
+
+      # Node.js / runtime exfiltration (signal evasion countermeasures)
+      # Attackers use Node.js https module to avoid triggering curl_wget signal
+      check_signal "node_https_request"   'https\.request\(|http\.request\(|require\(.https.\)'
+      check_signal "node_child_process_exec" 'child_process|execSync\s*\('
+      check_signal "ruby_http_client"     'Net::HTTP|open-uri|Faraday|Typhoeus|Excon\.|RestClient|OpenURI'
+      check_signal "jvm_http_client"       'HttpURLConnection|java\.net\.URL|OkHttpClient|okhttp3'
+      check_signal "cmake_remote_fetch"  'file\s*\(\s*DOWNLOAD|ExternalProject_Add|FetchContent'
+      check_signal "powershell_invoke_web" 'Invoke-WebRequest|Invoke-RestMethod|\bpwsh\b.*-Command|powershell\.exe'
+      check_signal "nix_shell_hook"      'mkShell|shellHook|builtins\.fetchurl'
+      check_signal "github_script_token"  'core\.getInput.*github-token|core\.getInput.*token'
+      check_signal "gh_api_exfil"         '\bgh api\b'
+      check_signal "toJSON_secrets"       'toJSON\(secrets\)'
+
+      # GitLab-specific (cross-platform: may appear in any repo)
+      check_signal "ci_job_token"          'CI_JOB_TOKEN'
+      check_signal "ci_registry_password"  'CI_REGISTRY_PASSWORD|CI_DEPLOY_PASSWORD|CI_DEPLOY_USER'
+      check_signal "gitlab_remote_include" 'include:.*remote:|remote:.*https?://|include:.*https?://'
+
+      # Check for signals hidden by truncation (full diff has it, LLM excerpt doesn't)
+      check_tail_signal "secrets_context"        '\$\{\{.*secrets\.'
+      check_tail_signal "curl_wget"              '\b(curl|wget)\b'
+      check_tail_signal "http_cli_download_alt"  '\baria2c\b|\baxel\b|\bhttpie\b|\bwget2\b'
+      check_tail_signal "node_global_fetch"     'globalThis\.fetch\s*\(|\bfetch\s*\([^)\n]*https?://'
+      check_tail_signal "js_function_ctor_unsafe" '\bnew Function\s*\('
+      check_tail_signal "perl_http_lite"         'HTTP::Tiny|LWP::|WWW::Mechanize'
+      check_tail_signal "php_stream_remote"     'file_get_contents\s*\([^)\n]*https?://|readfile\s*\([^)\n]*https?://|\bphp\s+-r'
+      check_tail_signal "go_run_remote"         '\bgo\s+run\s+https?://'
+      check_tail_signal "deno_run_remote"       '\bdeno\s+(run|compile|install)\b.*https?://'
+      check_tail_signal "bun_remote_https"      '\bbun\s+(x|run|install)\b.*https?://'
+      check_tail_signal "uv_remote_https"       '\buv\s+(run|tool\s+run|pip(\s+install)?|add)\b.*https?://'
+      check_tail_signal "cargo_install_git"     '\bcargo\s+(install|add)\b[^\n]*--git'
+      check_tail_signal "node_dlx_remote_https" '\b(pnpm\s+dlx|yarn\s+dlx|yarn\s+npm\s+exec)\b.*https?://'
+      check_tail_signal "base64"                 '\bbase64\b'
+      check_tail_signal "printenv"               '\bprintenv\b'
+      check_tail_signal "python_urllib"           'urllib\.request|urllib\.urlopen|requests\.(get|post|put)'
+      check_tail_signal "python_env_capture"     'os\.environ|dict\(os\.environ\)'
+      check_tail_signal "python_base64"          'import base64|from base64'
+      check_tail_signal "nc_ncat"                '\b(nc|ncat|netcat|socat)\b'
+      check_tail_signal "proc_mem_read"          '/proc/.*mem\b'
+      check_tail_signal "gh_auth_token"          'gh auth token'
+      check_tail_signal "bash_tcp_redirect"      '/dev/tcp/|/dev/udp/'
+      check_tail_signal "double_base64"          'base64.*\|.*base64'
+      check_tail_signal "node_https_request"   'https\.request\(|http\.request\(|require\(.https.\)'
+      check_tail_signal "node_child_process_exec" 'child_process|execSync\s*\('
+      check_tail_signal "bash_ifs_whitespace"  '\$\{IFS\}'
+      check_tail_signal "node_main_module_bypass" 'process\.mainModule\.require'
+      check_tail_signal "ruby_http_client"     'Net::HTTP|open-uri|Faraday|Typhoeus|Excon\.|RestClient|OpenURI'
+      check_tail_signal "jvm_http_client"       'HttpURLConnection|java\.net\.URL|OkHttpClient|okhttp3'
+      check_tail_signal "cmake_remote_fetch"  'file\s*\(\s*DOWNLOAD|ExternalProject_Add|FetchContent'
+      check_tail_signal "powershell_invoke_web" 'Invoke-WebRequest|Invoke-RestMethod|\bpwsh\b.*-Command|powershell\.exe'
+      check_tail_signal "nix_shell_hook"      'mkShell|shellHook|builtins\.fetchurl'
+
+      # Author trust signals (from enrichment)
+      AUTHOR_PROFILE=".cicd-abuse-detector/author_profile.json"
+      PRIOR_COMMITS=$(jq -r '.prior_commits_to_repo // 0' "$AUTHOR_PROFILE" 2>/dev/null || echo "0")
+      IS_PROJECT_MEMBER_VAL=$(jq -r '.is_project_member // false' "$AUTHOR_PROFILE" 2>/dev/null || echo "false")
+
+      if [ "$PRIOR_COMMITS" = "0" ]; then
+        SIGNALS="${SIGNALS:+$SIGNALS, }first_time_contributor"
+      fi
+      if [ "$IS_PROJECT_MEMBER_VAL" = "false" ]; then
+        SIGNALS="${SIGNALS:+$SIGNALS, }non_org_member"
+      fi
+
+      HAS_BACKDATED=$(jq -r '.has_backdated_commits // false' "$AUTHOR_PROFILE" 2>/dev/null || echo "false")
+      if [ "$HAS_BACKDATED" = "true" ]; then
+        SIGNALS="${SIGNALS:+$SIGNALS, }backdated_commits"
+      fi
+
+      # Self-protection: detect if attacker modified the analysis prompt or schema
+      if grep -qE 'prompts/analyze-cicd-change\.md|schemas/verdict\.schema\.json' .cicd-abuse-detector/all_changed.txt 2>/dev/null; then
+        SIGNALS="${SIGNALS:+$SIGNALS, }prompt_file_modified"
+      fi
+
+      if [ -z "$SIGNALS" ]; then
+        SIGNALS="none"
+        echo "No pre-screen signals detected. Claude will still analyze the diffs."
+      else
+        echo "Detected signals: $SIGNALS"
+      fi
+
+      # ── Build analysis bundle ──
+      ANALYSIS_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+      jq -n \
+        --arg repo "$BUILD_REPOSITORY_NAME" \
+        --arg actor "$ACTOR" \
+        --arg event "$BUILD_REASON" \
+        --arg ref "$BUILD_SOURCEBRANCHNAME" \
+        --arg target_branch "$TARGET_BRANCH" \
+        --arg change_path "$CHANGE_PATH" \
+        --arg signals "$SIGNALS" \
+        --arg full_file_signals "${FULL_FILE_SIGNALS:-none}" \
+        --arg analysis_date "$ANALYSIS_DATE" \
+        --arg diff "$(cat .cicd-abuse-detector/relevant.diff)" \
+        --argjson files "$(jq -R -s 'split("\n") | map(select(. != ""))' .cicd-abuse-detector/interesting_files.txt)" \
+        --argjson author_profile "$(cat .cicd-abuse-detector/author_profile.json)" \
+        --argjson truncated_files "$(cat .cicd-abuse-detector/truncated_files.json)" \
+        '{repo:$repo, actor:$actor, event_name:$event, ref_name:$ref,
+          target_branch:$target_branch, change_path:$change_path,
+          analysis_date:$analysis_date,
+          interesting_files:$files, signals:$signals,
+          full_file_signals:$full_file_signals,
+          truncated_files:$truncated_files,
+          author_profile:$author_profile, diff_excerpt:$diff}' > .cicd-abuse-detector/analysis_bundle.json
+
+      # ── Analyze with Claude ──
+      # Read prompt and schema from base branch to prevent attacker from
+      # neutering analysis by modifying these files in their PR.
+      DIFF_BASE=$(cat .cicd-abuse-detector/diff_base.txt)
+      TRUSTED_PROMPT=$(git show "$DIFF_BASE":prompts/analyze-cicd-change.md 2>/dev/null || cat prompts/analyze-cicd-change.md)
+      git show "$DIFF_BASE":schemas/verdict.schema.json > .cicd-abuse-detector/trusted_schema.json 2>/dev/null \
+        || cp schemas/verdict.schema.json .cicd-abuse-detector/trusted_schema.json
+
+      claude -p "${TRUSTED_PROMPT}
+
+      Read the analysis bundle at .cicd-abuse-detector/analysis_bundle.json.
+      Read the verdict schema at .cicd-abuse-detector/trusted_schema.json.
+      Write your verdict as strict JSON to .cicd-abuse-detector/verdict.json matching the schema.
+      Write ONLY the JSON file. No other output." \
+        --model claude-opus-4-6 \
+        --max-turns 5 \
+        --allowedTools "Read,Write"
+
+      # ── Validate verdict ──
+      if ! jq empty .cicd-abuse-detector/verdict.json 2>/dev/null; then
+        echo "##vso[task.logissue type=error]Verdict JSON is missing or malformed. Manual review required."
+        exit 1
+      fi
+
+      SEVERITY=$(jq -r '.severity // "unknown"' .cicd-abuse-detector/verdict.json)
+      VERDICT=$(jq -r '.verdict // "error"' .cicd-abuse-detector/verdict.json)
+      CONFIDENCE=$(jq -r '.confidence // "low"' .cicd-abuse-detector/verdict.json)
+      SUMMARY=$(jq -r '.summary // "No summary available"' .cicd-abuse-detector/verdict.json)
+
+      # Export for downstream steps
+      echo "##vso[task.setvariable variable=severity]$SEVERITY"
+      echo "##vso[task.setvariable variable=verdict]$VERDICT"
+      echo "##vso[task.setvariable variable=confidence]$CONFIDENCE"
+
+      # ── Print verdict to build log ──
+      echo "═══════════════════════════════════════════════════"
+      echo "CI/CD Abuse Detector Result"
+      echo "═══════════════════════════════════════════════════"
+      echo "Verdict:    ${VERDICT}"
+      echo "Severity:   ${SEVERITY}"
+      echo "Confidence: ${CONFIDENCE}"
+      echo "───────────────────────────────────────────────────"
+      echo "Summary: ${SUMMARY}"
+      echo "───────────────────────────────────────────────────"
+      echo "Reasons:"
+      jq -r '.reasons[] | "  • \(.)"' .cicd-abuse-detector/verdict.json
+      echo "Suspicious files:"
+      jq -r '.suspicious_files[] | "  • \(.)"' .cicd-abuse-detector/verdict.json
+      echo "Recommended actions:"
+      jq -r '.recommended_actions[] | "  • \(.)"' .cicd-abuse-detector/verdict.json
+      echo "═══════════════════════════════════════════════════"
+      jq '.' .cicd-abuse-detector/verdict.json
+
+      # ── Alert threshold check ──
+      # ADO leaves undefined variables as literal "$(VAR_NAME)" — strip those
+      THRESHOLD="${CI_CD_ABUSE_ALERT_THRESHOLD:-high}"
+      [[ "$THRESHOLD" == *'$('* ]] && THRESHOLD="high"
+      severity_rank() { case "$1" in critical)echo 4;;high)echo 3;;medium)echo 2;;low)echo 1;;*)echo 3;;esac; }
+      SHOULD_ALERT="false"
+      if [ "$(severity_rank "$SEVERITY")" -ge "$(severity_rank "$THRESHOLD")" ]; then
+        SHOULD_ALERT="true"
+      fi
+
+      # ── Slack notification ──
+      SLACK_URL="${SLACK_WEBHOOK_URL:-}"
+      [[ "$SLACK_URL" == *'$('* ]] && SLACK_URL=""
+      if [ "$SHOULD_ALERT" = "true" ] && [ -n "$SLACK_URL" ]; then
+        echo "Sending Slack alert (severity ${SEVERITY} >= threshold ${THRESHOLD})..."
+        BUILD_URL="${SYSTEM_COLLECTIONURI}${SYSTEM_TEAMPROJECT}/_build/results?buildId=${BUILD_BUILDID}"
+        PR_URL=""
+        if [ "$BUILD_REASON" = "PullRequest" ]; then
+          PR_ID="${SYSTEM_PULLREQUEST_PULLREQUESTID:-}"
+          if [ -n "$PR_ID" ]; then
+            PR_URL="${SYSTEM_COLLECTIONURI}${SYSTEM_TEAMPROJECT}/_git/${BUILD_REPOSITORY_NAME}/pullrequest/${PR_ID}"
+          fi
+        fi
+        jq -n \
+          --arg severity "$SEVERITY" --arg verdict "$VERDICT" \
+          --arg confidence "$CONFIDENCE" --arg summary "$SUMMARY" \
+          --arg repo "$BUILD_REPOSITORY_NAME" --arg actor "$ACTOR" \
+          --arg build_url "$BUILD_URL" --arg pr_url "$PR_URL" \
+          '{
+            text: ("CI/CD Abuse Alert: " + $severity + " in " + $repo),
+            blocks: [
+              {type: "header", text: {type: "plain_text", text: "CI/CD Abuse Detector Alert"}},
+              {type: "section", fields: [
+                {type: "mrkdwn", text: ("*Repository:*\n`" + $repo + "`")},
+                {type: "mrkdwn", text: ("*Severity:*\n`" + $severity + "`")},
+                {type: "mrkdwn", text: ("*Verdict:*\n`" + $verdict + "` (" + $confidence + ")")},
+                {type: "mrkdwn", text: ("*Actor:*\n`" + $actor + "`")}
+              ]},
+              {type: "section", text: {type: "mrkdwn", text: ("*Summary:*\n" + $summary)}},
+              {type: "actions", elements: (
+                [{type: "button", text: {type: "plain_text", text: "View Build"}, url: $build_url}]
+                + if $pr_url != "" then
+                  [{type: "button", text: {type: "plain_text", text: "View PR"}, url: $pr_url}]
+                else [] end
+              )}
+            ]
+          }' > .cicd-abuse-detector/slack_payload.json
+        curl -s -X POST -H 'Content-type: application/json' \
+          -d @.cicd-abuse-detector/slack_payload.json \
+          -K <(printf -- 'url = "%s"' "$SLACK_URL") || echo "WARNING: Slack notification failed"
+      elif [ "$SHOULD_ALERT" = "true" ]; then
+        echo "##vso[task.logissue type=warning]Severity ${SEVERITY} >= threshold ${THRESHOLD} but SLACK_WEBHOOK_URL is not set."
+      fi
+
+      # ── Azure DevOps work item creation ──
+      if [ "$SHOULD_ALERT" = "true" ] && [ -n "${SYSTEM_ACCESSTOKEN:-}" ]; then
+        echo "Creating ADO work item for alert..."
+        BUILD_URL="${SYSTEM_COLLECTIONURI}${SYSTEM_TEAMPROJECT}/_build/results?buildId=${BUILD_BUILDID}"
+        ISSUE_REASONS=$(jq -r '[.reasons[] | "- " + .] | join("<br>")' .cicd-abuse-detector/verdict.json)
+        ISSUE_FILES=$(jq -r '[.suspicious_files[] | "- <code>" + . + "</code>"] | join("<br>")' .cicd-abuse-detector/verdict.json)
+        ISSUE_ACTIONS=$(jq -r '[.recommended_actions[] | "- " + .] | join("<br>")' .cicd-abuse-detector/verdict.json)
+
+        # Auto-detect work item type: Basic process has "Issue", Agile/Scrum/CMMI has "Bug"
+        # Allow override via CI_CD_ABUSE_WORK_ITEM_TYPE variable
+        WI_TYPE="${CI_CD_ABUSE_WORK_ITEM_TYPE:-}"
+        [[ "$WI_TYPE" == *'$('* ]] && WI_TYPE=""
+        if [ -z "$WI_TYPE" ]; then
+          AVAILABLE_TYPES=$(curl -s -K <(printf -- '-u ":%s"' "$SYSTEM_ACCESSTOKEN") \
+            "${SYSTEM_COLLECTIONURI}${SYSTEM_TEAMPROJECT}/_apis/wit/workitemtypes?api-version=7.1" \
+            | jq -r '.value[].name' 2>/dev/null || true)
+          if echo "$AVAILABLE_TYPES" | grep -qx "Bug"; then
+            WI_TYPE="Bug"
+          elif echo "$AVAILABLE_TYPES" | grep -qx "Issue"; then
+            WI_TYPE="Issue"
+          else
+            WI_TYPE="Issue"
+          fi
+          echo "Auto-detected work item type: $WI_TYPE"
+        fi
+
+        # Build base payload
+        jq -n --arg severity "$SEVERITY" --arg verdict "$VERDICT" \
+          --arg confidence "$CONFIDENCE" --arg actor "$ACTOR" \
+          --arg summary "$SUMMARY" --arg reasons "$ISSUE_REASONS" \
+          --arg files "$ISSUE_FILES" --arg actions "$ISSUE_ACTIONS" \
+          --arg build_url "$BUILD_URL" --arg build_id "$BUILD_BUILDID" \
+          --arg wi_type "$WI_TYPE" \
+          '([
+            {"op":"add","path":"/fields/System.Title","value":("CI/CD Abuse Alert: " + $severity + " - " + $verdict)},
+            {"op":"add","path":"/fields/System.Description","value":(
+              "<h2>CI/CD Abuse Detector Alert</h2>" +
+              "<p><b>Severity:</b> <code>" + $severity + "</code> | <b>Verdict:</b> <code>" + $verdict + "</code> | <b>Confidence:</b> <code>" + $confidence + "</code></p>" +
+              "<p><b>Actor:</b> <code>" + $actor + "</code> | <b>Build:</b> <a href=\"" + $build_url + "\">#" + $build_id + "</a></p>" +
+              "<h3>Summary</h3><p>" + $summary + "</p>" +
+              "<h3>Reasons</h3><p>" + $reasons + "</p>" +
+              "<h3>Suspicious files</h3><p>" + $files + "</p>" +
+              "<h3>Recommended actions</h3><p>" + $actions + "</p>"
+            )},
+            {"op":"add","path":"/fields/System.Tags","value":("cicd-abuse-alert;" + $severity)}
+          ] + if $wi_type == "Bug" then
+            [{"op":"add","path":"/fields/Microsoft.VSTS.Common.Severity","value":(
+              if $severity == "critical" then "1 - Critical"
+              elif $severity == "high" then "2 - High"
+              elif $severity == "medium" then "3 - Medium"
+              else "4 - Low" end
+            )}]
+          else [] end)' > /tmp/workitem-payload.json
+
+        WI_RESPONSE=$(curl -s --request POST \
+          -K <(printf -- '-u ":%s"' "$SYSTEM_ACCESSTOKEN") \
+          -H "Content-Type: application/json-patch+json" \
+          -d @/tmp/workitem-payload.json \
+          "${SYSTEM_COLLECTIONURI}${SYSTEM_TEAMPROJECT}/_apis/wit/workitems/\$${WI_TYPE}?api-version=7.1")
+        echo "$WI_RESPONSE" | jq '{id: .id, url: .url}' 2>/dev/null || echo "WARNING: Work item creation failed: $(echo "$WI_RESPONSE" | jq -r '.message // .' 2>/dev/null)"
+      fi
+
+      # ── Ship to Elastic ──
+      ES_URL_VAL="${ES_URL:-}"; [[ "$ES_URL_VAL" == *'$('* ]] && ES_URL_VAL=""
+      ES_KEY_VAL="${ES_API_KEY:-}"; [[ "$ES_KEY_VAL" == *'$('* ]] && ES_KEY_VAL=""
+      if [ "$SHOULD_ALERT" = "true" ] && [ -n "$ES_URL_VAL" ] && [ -n "$ES_KEY_VAL" ]; then
+        jq -n --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg platform azure_devops \
+          --arg repo "$BUILD_REPOSITORY_NAME" --arg actor "$ACTOR" --arg event "${BUILD_REASON:-}" \
+          --arg pr "${PR_ID:-}" \
+          --arg run_url "${SYSTEM_COLLECTIONURI}${SYSTEM_TEAMPROJECT}/_build/results?buildId=${BUILD_BUILDID}" \
+          --slurpfile v .cicd-abuse-detector/verdict.json \
+          '{"@timestamp":$ts,event:{kind:"alert",module:"cicd_abuse_detector"},
+            cicd:{platform:$platform,repository:$repo,actor:$actor,
+            event_type:$event,pr_number:$pr,run_url:$run_url},verdict:$v[0]}' \
+        | curl -sS -o /dev/null -X POST "${ES_URL_VAL}/logs-cicd.abuse-default/_doc" \
+            -K <(printf -- '-H "Authorization: ApiKey %s"' "$ES_KEY_VAL") \
+            -H "Content-Type: application/json" -d @- || true
+      fi
+
+      # ── Fail gate ──
+      # ADO leaves undefined variables as literal "$(VAR_NAME)" — strip those
+      FAIL_ON="${CI_CD_ABUSE_FAIL_ON_SEVERITY:-}"
+      [[ "$FAIL_ON" == *'$('* ]] && FAIL_ON=""
+      if [ -n "$FAIL_ON" ]; then
+        if [ "$(severity_rank "$SEVERITY")" -ge "$(severity_rank "$FAIL_ON")" ]; then
+          echo "##vso[task.logissue type=error]FAIL GATE: Severity ${SEVERITY} >= fail threshold ${FAIL_ON}"
+          exit 1
+        fi
+      fi
+    displayName: 'Gather, enrich, and analyze'
+    env:
+      # Foundry (enterprise):
+      ANTHROPIC_FOUNDRY_BASE_URL: $(ANTHROPIC_FOUNDRY_BASE_URL)
+      ANTHROPIC_FOUNDRY_API_KEY: $(ANTHROPIC_FOUNDRY_API_KEY)
+      CLAUDE_CODE_USE_FOUNDRY: $(CLAUDE_CODE_USE_FOUNDRY)
+      # Model routing:
+      ANTHROPIC_DEFAULT_OPUS_MODEL: claude-opus-4-6
+      ANTHROPIC_DEFAULT_SONNET_MODEL: claude-sonnet-4-6
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: claude-haiku-4-5
+      # Standard API:
+      ANTHROPIC_API_KEY: $(ANTHROPIC_API_KEY)
+      # Alerting:
+      SLACK_WEBHOOK_URL: $(SLACK_WEBHOOK_URL)
+      # Elastic (optional):
+      ES_URL: $(ES_URL)
+      ES_API_KEY: $(ES_API_KEY)
+      CI_CD_ABUSE_ALERT_THRESHOLD: $(CI_CD_ABUSE_ALERT_THRESHOLD)
+      CI_CD_ABUSE_FAIL_ON_SEVERITY: $(CI_CD_ABUSE_FAIL_ON_SEVERITY)
+      CI_CD_ABUSE_EXTRA_PATHS: $(CI_CD_ABUSE_EXTRA_PATHS)
+      CI_CD_ABUSE_WORK_ITEM_TYPE: $(CI_CD_ABUSE_WORK_ITEM_TYPE)
+      # System token for API calls (author enrichment, work item creation)
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+
+  - script: |
+      mkdir -p .cicd-abuse-detector/publish
+      cp -f .cicd-abuse-detector/verdict.json .cicd-abuse-detector/publish/ 2>/dev/null || true
+      cp -f .cicd-abuse-detector/author_profile.json .cicd-abuse-detector/publish/ 2>/dev/null || true
+    displayName: 'Stage verdict artifacts'
+    condition: always()
+
+  - publish: .cicd-abuse-detector/publish/
+    artifact: cicd-abuse-detector
+    displayName: 'Publish verdict artifacts'
+    condition: always()

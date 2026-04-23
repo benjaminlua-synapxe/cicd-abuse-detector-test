@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/elastic/cicd-abuse-detector/schemas/verdict.schema.json",
+  "title": "CI/CD Abuse Detector Verdict",
+  "description": "Structured verdict from LLM analysis of CI/CD configuration changes",
+  "type": "object",
+  "required": [
+    "verdict",
+    "confidence",
+    "severity",
+    "summary",
+    "reasons",
+    "suspicious_files",
+    "evidence",
+    "recommended_actions",
+    "trust_context",
+    "abuse_paths"
+  ],
+  "properties": {
+    "verdict": {
+      "type": "string",
+      "enum": ["benign", "suspicious", "malicious"],
+      "description": "Overall assessment of the change"
+    },
+    "confidence": {
+      "type": "string",
+      "enum": ["low", "medium", "high"],
+      "description": "Confidence level in the verdict"
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["low", "medium", "high", "critical"],
+      "description": "Severity of the detected risk"
+    },
+    "summary": {
+      "type": "string",
+      "description": "Brief human-readable summary of the analysis",
+      "maxLength": 500
+    },
+    "reasons": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "description": "List of reasons supporting the verdict"
+    },
+    "suspicious_files": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "File paths that contributed to the verdict"
+    },
+    "evidence": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Specific code patterns, lines, or signals found"
+    },
+    "recommended_actions": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "description": "Suggested follow-up actions for the reviewer"
+    },
+    "trust_context": {
+      "type": "object",
+      "description": "Contextual factors that influenced the trust assessment",
+      "required": ["change_path", "author_trust_level", "protected_target"],
+      "properties": {
+        "change_path": {
+          "type": "string",
+          "enum": ["pull_request", "direct_push"],
+          "description": "How the change was introduced"
+        },
+        "author_trust_level": {
+          "type": "string",
+          "enum": ["unknown", "contributor", "maintainer", "bot"],
+          "description": "Inferred trust level of the change author"
+        },
+        "protected_target": {
+          "type": "boolean",
+          "description": "Whether the target branch is protected (main, master, release)"
+        }
+      },
+      "additionalProperties": false
+    },
+    "abuse_paths": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["technique", "description", "severity"],
+        "properties": {
+          "technique": {
+            "type": "string",
+            "description": "MITRE ATT&CK or custom technique identifier"
+          },
+          "description": {
+            "type": "string",
+            "description": "How this abuse path could be exploited"
+          },
+          "severity": {
+            "type": "string",
+            "enum": ["low", "medium", "high", "critical"]
+          }
+        },
+        "additionalProperties": false
+      },
+      "description": "Identified abuse paths with severity ratings"
+    }
+  },
+  "additionalProperties": false
+}

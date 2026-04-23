@@ -1,0 +1,2 @@
+# Only for `make validate` / maintainer CI (YAML parse). Not part of shipped workflow templates.
+PyYAML>=6.0.1

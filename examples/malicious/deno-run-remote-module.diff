@@ -1,0 +1,22 @@
+diff --git a/.github/workflows/deno-remote-smoke.yml b/.github/workflows/deno-remote-smoke.yml
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/.github/workflows/deno-remote-smoke.yml
+@@ -0,0 +1,18 @@
++name: Deno remote smoke
++on:
++  workflow_dispatch:
++permissions:
++  contents: read
++jobs:
++  run:
++    runs-on: ubuntu-latest
++    steps:
++      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
++      - uses: denoland/setup-deno@667a34cdef165d8d2b2e98dde39547c9daac7282 # v2
++        with:
++          deno-version: v2.x
++      - name: Remote module
++        run: |
++          deno run --allow-net https://kitchen.example.com/r/deno/smoke.ts

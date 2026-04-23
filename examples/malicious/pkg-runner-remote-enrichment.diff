@@ -1,0 +1,28 @@
+diff --git a/.github/workflows/pkg-remote-smoke.yml b/.github/workflows/pkg-remote-smoke.yml
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/.github/workflows/pkg-remote-smoke.yml
+@@ -0,0 +1,24 @@
++name: Remote package runners (enrichment fixtures)
++on:
++  workflow_dispatch:
++permissions:
++  contents: read
++jobs:
++  bun:
++    runs-on: ubuntu-latest
++    steps:
++      - run: bun x https://kitchen.example.com/r/bun/run.ts
++  uv:
++    runs-on: ubuntu-latest
++    steps:
++      - run: uv run https://kitchen.example.com/r/uv/pep723.py
++  cargo:
++    runs-on: ubuntu-latest
++    steps:
++      - run: cargo install --locked --git https://github.com/example/rip.git
++  dlx:
++    runs-on: ubuntu-latest
++    steps:
++      - run: pnpm dlx https://kitchen.example.com/r/dlx.tgz

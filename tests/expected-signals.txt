@@ -1,0 +1,54 @@
+# Expected signals for each example diff.
+# Format: path/to/file.diff: signal1, signal2, ...
+# Use "none" for diffs that should trigger zero signals.
+
+# ── Malicious examples ──
+malicious/secret-exfil-curl.diff: secrets_context, id_token_write, cloud_auth_action, curl_wget
+malicious/runner-memory-exfil.diff: pull_request_target, curl_wget, base64, checkout_ref, context_injection, proc_mem_read
+malicious/pull-request-target-checkout.diff: pull_request_target, secrets_context, checkout_ref, context_injection
+malicious/write-all-permissions.diff: write_all, secrets_context, printenv
+malicious/artifact-token-leak.diff: upload_artifact
+
+malicious/nord-stream-pipeline-exfil.diff: secrets_context, id_token_write, cloud_auth_action, env_secret_grep, base64, double_base64, env_null_dump
+malicious/ide-config-poisoning.diff: curl_wget, curl_pipe_node, vscode_auto_task, hidden_ide_config, postinstall_script, eval_remote_code, base64
+malicious/github-env-injection.diff: curl_wget, base64, dependency_install_change, github_env_write, github_path_write, ld_preload, schedule_trigger
+malicious/devcontainer-lifecycle-attack.diff: curl_wget, curl_pipe_node, ssh_key_access, base64, dependency_install_change, devcontainer_lifecycle, docker_socket_mount, variable_cmd_exec
+malicious/context-injection-reusable.diff: pull_request_target, issue_comment_trigger, curl_wget, checkout_ref, context_injection, dispatch_input_injection, contents_write, secrets_inherit, mutable_action_ref
+malicious/nord-stream-azure-devops.diff: base64, double_base64, env_null_dump, env_secret_grep, system_access_token, ado_service_connection, ado_spn_exposure, ado_secure_file, persist_credentials, task_source_patch, ado_aws_task, ado_sonar_task, variable_cmd_exec
+
+# Note: backdated-config-trojan.diff has eval() in its obfuscated payload.
+# The backdated_commits signal is a metadata signal from git commit dates,
+# not detectable via grep on diff content — the LLM catches it via the bundle.
+malicious/backdated-config-trojan.diff: eval_remote_code, hex_decode
+
+malicious/codecov-curl-pipe-bash.diff: secrets_context, curl_wget, python_urllib, curl_pipe_bash, dependency_install_change, setup_py_command
+malicious/oidc-token-minting.diff: actions_runtime_token, actions_id_token_url, cloud_auth_action, env_secret_grep, workflow_run, id_token_write, curl_wget, base64, github_env_write
+malicious/npm-worm-supply-chain.diff: secrets_context, secrets_to_output, secrets_to_env, gh_auth_token, curl_wget, base64, secret_scanning_tool, silent_npm_install, dependency_install_change, github_env_write
+malicious/self-hosted-runner-escape.diff: cloud_cred_file_access, proc_self_environ, k8s_secret_access, self_hosted, runner_tracking_tamper, container_escape, upload_artifact, proc_mem_read
+malicious/exfil-channels-variety.diff: secrets_context, cloud_cred_file_access, ssh_key_access, curl_wget, nc_ncat, base64, sensitive_file_archive, dns_exfil, schedule_trigger, bash_tcp_redirect, openssl_encoding, xxd_encoding
+malicious/supply-chain-lockfile.diff: secrets_context, gh_auth_token, download_artifact, mcp_config_write, lockfile_registry_swap, github_env_write, github_app_token
+malicious/gitlab-ci-secrets.diff: ci_job_token, ci_registry_password, gitlab_remote_include, env_secret_grep, curl_wget, base64, double_base64, env_null_dump
+malicious/python-stdlib-exfil.diff: github_token, base64, python_urllib, python_env_capture, python_base64, python_socket
+malicious/gradle-jvm-ruby-runtime-exfil.diff: jvm_http_client, ruby_http_client
+malicious/cmake-file-download-exfil.diff: cmake_remote_fetch
+malicious/msbuild-directory-build-exfil.diff: powershell_invoke_web, variable_cmd_exec
+malicious/smokedmeat-github-script-stager.diff: curl_pipe_bash, curl_wget, node_child_process_exec
+malicious/smokedmeat-ifs-mainmodule.diff: bash_ifs_whitespace, base64, curl_pipe_bash, curl_wget, node_child_process_exec, node_main_module_bypass
+malicious/alternate-http-cli-aria2c-stager.diff: http_cli_download_alt
+malicious/smokedmeat-node-fetch-function.diff: node_global_fetch, js_function_ctor_unsafe
+malicious/nord-stream-perl-http-tiny-stager.diff: perl_http_lite
+malicious/php-stream-remote-stager.diff: php_stream_remote
+malicious/smokedmeat-node-fetch-bare-url.diff: node_global_fetch, js_function_ctor_unsafe
+malicious/go-run-remote-module.diff: go_run_remote
+malicious/pkg-runner-remote-enrichment.diff: bun_remote_https, uv_remote_https, cargo_install_git, node_dlx_remote_https, dependency_install_change
+malicious/deno-run-remote-module.diff: deno_run_remote
+malicious/wget2-pipe-bash-stager.diff: http_cli_download_alt, curl_pipe_bash
+malicious/nix-flake-shellhook-exfil.diff: base64, curl_wget, nix_shell_hook, printenv
+malicious/bash-udp-socat-exfil.diff: secrets_context, bash_tcp_redirect, nc_ncat
+malicious/xh-http-cli-exfil.diff: secrets_context, http_cli_download_alt, dependency_install_change
+
+# ── Benign examples ──
+benign/lint-workflow.diff: none
+benign/action-pin-upgrade.diff: none
+benign/cache-optimization.diff: none
+benign/curl-download-tools.diff: curl_wget, upload_artifact, curl_pipe_bash, dependency_install_change
