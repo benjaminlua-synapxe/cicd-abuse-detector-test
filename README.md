@@ -7,6 +7,8 @@
 
 Drop-in CI templates that use an LLM to detect suspicious changes to CI/CD pipelines, workflows, and automation configurations. Built to catch a common attack chain: **stolen developer credentials → modified workflow → harvested CI secrets**.
 
+**This repository is a prototype and reference implementation** tied to Elastic Security Labs research: [Detecting CI/CD pipeline abuse with LLM-augmented analysis](https://www.elastic.co/security-labs/detecting-cicd-pipeline-abuse-with-llm-augmented-analysis). It is **not** an officially supported Elastic product. Use, fork, and adapt the templates for your own review process; do not expect product-style SLAs, support entitlements, or a fixed roadmap from Elastic.
+
 ![CI/CD Abuse Detector](docs/hero.svg)
 
 ### How to use this GitHub project
@@ -106,23 +108,19 @@ For a **visual pipeline overview**, see [`docs/architecture.svg`](docs/architect
 | [Scoring Notes](rules/scoring-notes.md) | Prescreen label combinations, calibration |
 | [Testing](docs/testing.md) | `make test`, `make validate`, optional LLM test notes |
 
-## Supported Platforms
+## Reference templates (by platform)
 
-| Platform | Status | Template |
-|----------|--------|----------|
-| GitHub Actions | **Full support** | [`templates/github/pr-cicd-abuse-detector.yml`](templates/github/pr-cicd-abuse-detector.yml) |
-| GitLab CI | **Full support** | [`templates/gitlab/pr-cicd-abuse-detector.yml`](templates/gitlab/pr-cicd-abuse-detector.yml) |
-| Azure DevOps | **Full support** | [`templates/azure-devops/pr-cicd-abuse-detector.yml`](templates/azure-devops/pr-cicd-abuse-detector.yml) |
+| Platform | Coverage | Template |
+|----------|----------|----------|
+| GitHub Actions | Reference workflow and prescreen + LLM step | [`templates/github/pr-cicd-abuse-detector.yml`](templates/github/pr-cicd-abuse-detector.yml) |
+| GitLab CI | Reference job script (parity with GitHub) | [`templates/gitlab/pr-cicd-abuse-detector.yml`](templates/gitlab/pr-cicd-abuse-detector.yml) |
+| Azure DevOps | Reference pipeline (parity with GitHub) | [`templates/azure-devops/pr-cicd-abuse-detector.yml`](templates/azure-devops/pr-cicd-abuse-detector.yml) |
 
 ## Attack Taxonomy
 
 ![Attack Taxonomy](docs/attack-taxonomy.svg)
 
 See the [Threat Model](docs/threat-model.md) for coverage of each attack path.
-
-## Research
-
-- [Detecting CI/CD pipeline abuse with LLM-augmented analysis](https://www.elastic.co/security-labs/detecting-cicd-pipeline-abuse-with-llm-augmented-analysis) — Elastic Security Labs blog (threat model and approach)
 
 ## Maintainer: validate and single-file build
 

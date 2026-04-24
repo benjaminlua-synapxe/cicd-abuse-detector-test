@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+#
+# CI/CD Abuse Detector — local prescreen test harness (development only).
+# Prototype: https://www.elastic.co/security-labs/detecting-cicd-pipeline-abuse-with-llm-augmented-analysis
+# Not an officially supported Elastic product.
+#
 # Run prescreen label (regex) tests against all example diffs.
 # Exits 0 if all tests pass, 1 if any fail.
 set -euo pipefail
