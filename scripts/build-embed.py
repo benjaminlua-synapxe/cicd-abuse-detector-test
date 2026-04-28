@@ -16,6 +16,9 @@
 
 """Embed prompt and schema into the GitHub Actions workflow template.
 
+Part of the CI/CD Abuse Detector prototype; see:
+https://www.elastic.co/security-labs/detecting-cicd-pipeline-abuse-with-llm-augmented-analysis
+
 Produces a single-file dist/*.yml where the prompt and schema are inline
 instead of read from separate files at runtime.
 

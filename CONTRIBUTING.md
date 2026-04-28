@@ -1,6 +1,6 @@
 # Contributing to CI/CD Abuse Detector
 
-This repository is published as **drop-in CI templates** (workflows, prompt, and verdict schema) under the [Apache License 2.0](LICENSE).
+This repository is published as **drop-in CI templates** (workflows, prompt, and verdict schema) under the [Apache License 2.0](LICENSE). It is a **prototype** (see the [Security Labs post](https://www.elastic.co/security-labs/detecting-cicd-pipeline-abuse-with-llm-augmented-analysis)) and is **not** an officially supported Elastic product; contributions help the reference implementation, not a product release train.
 
 **Customizing for your org:** The straightforward path is to **fork** (or copy) this repository and edit `templates/`, `prompts/`, and `schemas/` where you control CI. That is the right place for environment-specific tuning, most prescreen or prompt experiments, and iteration speed.
 

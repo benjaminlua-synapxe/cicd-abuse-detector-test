@@ -1,4 +1,5 @@
-# CI/CD Abuse Detector — Azure DevOps Pipelines
+# CI/CD Abuse Detector — Azure DevOps Pipelines (reference template; prototype, not an officially supported Elastic product).
+# Context: https://www.elastic.co/security-labs/detecting-cicd-pipeline-abuse-with-llm-augmented-analysis
 #
 # See docs/azure-devops.md for configuration and platform-specific caveats.
 

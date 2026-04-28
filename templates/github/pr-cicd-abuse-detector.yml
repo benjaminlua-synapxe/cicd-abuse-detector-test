@@ -1,3 +1,6 @@
+# CI/CD Abuse Detector — GitHub Actions (reference template; prototype, not an officially supported Elastic product).
+# Context: https://www.elastic.co/security-labs/detecting-cicd-pipeline-abuse-with-llm-augmented-analysis
+#
 name: CI/CD Abuse Detector
 
 on:

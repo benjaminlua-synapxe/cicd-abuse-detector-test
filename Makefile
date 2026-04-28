@@ -1,3 +1,7 @@
+# CI/CD Abuse Detector — local validation, tests, and single-file build (development only).
+# Prototype: https://www.elastic.co/security-labs/detecting-cicd-pipeline-abuse-with-llm-augmented-analysis
+# Not an officially supported Elastic product.
+#
 .PHONY: build validate test clean
 
 DIST_DIR := dist

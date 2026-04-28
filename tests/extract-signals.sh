@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+#
+# CI/CD Abuse Detector — manual signal helper (same regexes as templates; development use).
+# Prototype: https://www.elastic.co/security-labs/detecting-cicd-pipeline-abuse-with-llm-augmented-analysis
+# Not an officially supported Elastic product.
+#
 # Extract signals from a diff file using the same regex patterns as the CI templates.
 # Usage: source tests/extract-signals.sh  (reads .cicd-abuse-detector/relevant.diff)
 #    or: DIFF_FILE=path/to/file.diff source tests/extract-signals.sh
