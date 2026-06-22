@@ -554,6 +554,15 @@ jobs:
         if: steps.gather.outputs.has_interesting == 'true'
         run: npm install -g @github/copilot@1
 
+      - name: Debug token
+        run: |
+          if [ -z "${COPILOT_GITHUB_TOKEN:-}" ]; then
+            echo "COPILOT_GITHUB_TOKEN is empty"
+            exit 1
+          fi
+
+          echo "Token length: ${#COPILOT_GITHUB_TOKEN}"
+
       # ── Step 7: Analyze with Copilot CLI ──────────────────────────────
       - name: Analyze with Copilot
         if: steps.gather.outputs.has_interesting == 'true'
@@ -565,9 +574,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          AUTH_TOKEN="${COPILOT_GITHUB_TOKEN:-${GITHUB_TOKEN:-}}"
+          AUTH_TOKEN="${COPILOT_GITHUB_TOKEN:-}}"
           if [ -z "$AUTH_TOKEN" ]; then
-            echo "::error::Missing auth token for Copilot CLI (set COPILOT_GITHUB_TOKEN or provide GITHUB_TOKEN)"
+            echo "::error::Missing auth token for Copilot CLI (GitHub App tokens are not supported)"
             exit 1
           fi
 
