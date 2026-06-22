@@ -49,6 +49,6 @@ malicious/xh-http-cli-exfil.diff: secrets_context, http_cli_download_alt, depend
 
 # ── Benign examples ──
 benign/lint-workflow.diff: none
-benign/action-pin-upgrade.diff: none
+benign/action-pin-upgrade.diff: upload_artifact
 benign/cache-optimization.diff: none
 benign/curl-download-tools.diff: curl_wget, upload_artifact, curl_pipe_bash, dependency_install_change
