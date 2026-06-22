@@ -128,36 +128,43 @@ jobs:
           # Strategy: keep first 7k + last 3k of each diff so malicious code at the
           # end of a padded file is still visible. Signal extraction runs on the
           # FULL (uncapped) diff to catch patterns even if the LLM excerpt is capped.
+          # Generate per-file diffs.
           : > .cicd-abuse-detector/relevant.diff
           : > .cicd-abuse-detector/full_signals.diff
           TRUNCATED_FILES="[]"
+
           while IFS= read -r file; do
             FULL_DIFF=$(git diff --unified=3 "$DIFF_BASE" "$DIFF_HEAD" -- "$file" 2>/dev/null || true)
             FULL_LEN=${#FULL_DIFF}
 
-            # Always save full diff for signal extraction
             printf '%s\n' "--- analyzing: $file ---" >> .cicd-abuse-detector/full_signals.diff
             printf '%s\n' "$FULL_DIFF" >> .cicd-abuse-detector/full_signals.diff
 
-            # For the LLM: head + tail if over 10k, otherwise full diff
             printf '%s\n' "--- analyzing: $file ---" >> .cicd-abuse-detector/relevant.diff
+
             if [ "$FULL_LEN" -gt 10000 ]; then
-              # First 7000 chars
-              printf '%s' "$FULL_DIFF" | head -c 7000 >> .cicd-abuse-detector/relevant.diff
+              HEAD_SLICE="${FULL_DIFF:0:7000}"
+              TAIL_SLICE="${FULL_DIFF: -3000}"
+
+              printf '%s' "$HEAD_SLICE" >> .cicd-abuse-detector/relevant.diff
+
               printf '\n\n... [TRUNCATED: %d bytes total, showing first 7000 + last 3000] ...\n\n' "$FULL_LEN" >> .cicd-abuse-detector/relevant.diff
-              # Last 3000 chars
-              printf '%s' "$FULL_DIFF" | tail -c 3000 >> .cicd-abuse-detector/relevant.diff
-              # Track truncated files with tail excerpt for the bundle
-              TAIL_EXCERPT=$(printf '%s' "$FULL_DIFF" | tail -c 3000)
-              TRUNCATED_FILES=$(echo "$TRUNCATED_FILES" | jq --arg f "$file" --arg len "$FULL_LEN" --arg tail "$TAIL_EXCERPT" \
-                '. + [{"file": $f, "full_length": ($len | tonumber), "tail_excerpt": $tail}]')
+
+              printf '%s' "$TAIL_SLICE" >> .cicd-abuse-detector/relevant.diff
+
+              TRUNCATED_FILES=$(echo "$TRUNCATED_FILES" | jq \
+                --arg f "$file" \
+                --arg len "$FULL_LEN" \
+                --arg tail "$TAIL_SLICE" \
+                '. + [{"file": $f, "full_length": ($len | tonumber), "tail_excerpt": $tail}]'
+              )
             else
               printf '%s' "$FULL_DIFF" >> .cicd-abuse-detector/relevant.diff
             fi
+
             printf '\n' >> .cicd-abuse-detector/relevant.diff
           done < .cicd-abuse-detector/interesting_files.txt
 
-          # Save truncation metadata for the analysis bundle
           echo "$TRUNCATED_FILES" > .cicd-abuse-detector/truncated_files.json
 
           echo "::notice::Analyzing $(wc -l < .cicd-abuse-detector/interesting_files.txt | tr -d ' ') CI/CD files"
@@ -702,6 +709,13 @@ jobs:
           VERDICT: ${{ steps.verdict.outputs.verdict }}
           SUMMARY: ${{ steps.verdict.outputs.summary }}
         run: |
+          # Skip if Issues are disabled
+          if ! gh repo view "$GITHUB_REPOSITORY" --json hasIssues --jq '.hasIssues' | grep -qx true; then
+            echo "::notice::Repository issues are disabled. Skipping alert issue creation."
+            echo "issue_url=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          
           # Build PR row for issue body (empty if not a PR event)
           PR_ROW=""
           if [ -n "${PR_NUMBER:-}" ]; then
