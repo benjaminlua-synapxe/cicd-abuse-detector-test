@@ -18,7 +18,7 @@ node_modules/
 # Runtime artifacts
 .cicd-abuse-detector/
 
-# Claude Code local config (may contain tokens/permissions)
+# AI assistant local config (may contain tokens/permissions)
 .claude/
 
 # Secrets

@@ -12,18 +12,11 @@ schemas/verdict.schema.json                 → schemas/verdict.schema.json
 
 2. Add repository secrets (Settings → Secrets and variables → Actions):
 
-**LLM authentication (pick one):**
+**LLM authentication:**
 
 | Secret | Notes |
 |--------|-------|
-| `ANTHROPIC_API_KEY` | Standard Anthropic API key |
-
-Or, for Foundry (enterprise):
-
-| Secret | Notes |
-|--------|-------|
-| `ANTHROPIC_FOUNDRY_BASE_URL` | Foundry endpoint URL |
-| `ANTHROPIC_FOUNDRY_API_KEY` | Foundry API key |
+| `COPILOT_GITHUB_TOKEN` | Copilot CLI auth token used by Copilot analysis |
 
 **Optional integrations:**
 
@@ -41,6 +34,8 @@ Or, for Foundry (enterprise):
 | `CI_CD_ABUSE_FAIL_ON_SEVERITY` | _(empty — disabled)_ | Fail the PR check at this severity or above |
 | `CI_CD_ABUSE_INCLUDE_PUSHES` | `true` | Analyze direct pushes to main/master |
 | `CI_CD_ABUSE_EXTRA_PATHS` | _(empty)_ | Comma-separated additional path patterns to monitor |
+| `COPILOT_MODEL` | `auto` | Copilot CLI model ID used for analysis |
+| `COPILOT_PROVIDER_BASE_URL` | _(empty)_ | Optional BYOK provider endpoint for Copilot CLI advanced setups |
 
 4. Done. Open a PR that touches a workflow file and watch it run.
 
@@ -51,7 +46,7 @@ The workflow triggers on pull requests and pushes to `main`/`master`. It:
 1. **Filters** changed files across three tiers: workflow/pipeline files, build/release/packaging files (`setup.py`, `package.json`, lockfiles, Dockerfiles), and user-configured extra paths
 2. **Generates per-file diffs** (each capped at 10k chars to prevent bypass via padding)
 3. **Adds prescreen labels** — regex-derived hints plus metadata (secrets-shaped lines, privileged triggers, permission changes, exfiltration-shaped patterns, author trust, commit date anomalies). These enrich the LLM bundle; they are not a gate.
-4. **Calls Claude** via Claude Code CLI to analyze the bundle against the threat model
+4. **Calls Copilot** via Copilot CLI to analyze the bundle against the threat model
 5. **Renders results** to the GitHub Step Summary
 6. **Alerts** via GitHub Issue and/or Slack when severity meets the threshold
 7. **Optionally fails** the check when severity meets the fail gate
@@ -72,23 +67,23 @@ permissions:
 ### Why `pull_request` and Not `pull_request_target`
 
 The workflow uses `pull_request` trigger, which means:
-- **Fork PRs do NOT have access to repository secrets** — the attacker can't steal the Anthropic API key
+- **Fork PRs do NOT have access to repository secrets** — the attacker can't steal the Copilot CLI auth token
 - The attacker's modifications to CI/CD files are the **diff being analyzed**, not the analyzer
 
 ### Secret Scoping
 
 Secrets are scoped to minimize exposure:
-- `ANTHROPIC_*` only on the "Analyze with Claude" step `env:` (step-scoped, not exposed to other steps)
+- `COPILOT_GITHUB_TOKEN` only on the "Analyze with Copilot" step `env:` (step-scoped, not exposed to other steps)
 - `SLACK_WEBHOOK_URL` only on the Slack notification step
 - `GH_TOKEN` only on the author enrichment and issue creation steps
 
-### LLM Sandboxing
+### LLM Invocation Safety
 
-Claude Code runs with `--allowedTools "Read,Write"` — no Bash tool, no network tool. It can only read the analysis bundle and write the verdict JSON.
+The template calls Copilot CLI in non-interactive mode with a JSON-only instruction and validates the response with `jq` before using it.
 
 ### Output Safety
 
-All LLM-derived outputs (severity, verdict, summary) are passed through `env:` mappings in downstream steps, never interpolated via `${{ }}` in `run:` blocks. This prevents shell injection even if Claude produces adversarial output.
+All LLM-derived outputs (severity, verdict, summary) are passed through `env:` mappings in downstream steps, never interpolated via `${{ }}` in `run:` blocks. This prevents shell injection even if the model produces adversarial output.
 
 ## Customization
 
@@ -135,10 +130,10 @@ When the detector flags a malicious change, a GitHub Issue is created automatica
 The PR didn't modify any files matching the CI/CD path patterns. If you're monitoring custom paths, add them to `CI_CD_ABUSE_EXTRA_PATHS`.
 
 ### "No pre-screen signals detected"
-The diffs didn't match any prescreen regex patterns. Claude still analyzes the full diff — labels are advisory enrichment, not a gate. This message is informational only.
+The diffs didn't match any prescreen regex patterns. Copilot still analyzes the full diff — labels are advisory enrichment, not a gate. This message is informational only.
 
 ### "Verdict JSON is missing or malformed"
-Claude didn't produce valid JSON. This can happen due to API errors, rate limits, or prompt injection in the diff content. The workflow gracefully degrades — the Step Summary will note manual review is required.
+Copilot didn't produce valid JSON. This can happen due to API errors, rate limits, or prompt injection in the diff content. The workflow gracefully degrades — the Step Summary will note manual review is required.
 
 ### Slack notifications not sending
 Verify the `SLACK_WEBHOOK_URL` secret is set and the webhook is active. The Slack step only runs when severity meets the alert threshold AND the secret is non-empty.

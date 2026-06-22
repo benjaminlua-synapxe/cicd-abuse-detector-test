@@ -47,7 +47,7 @@
   <text x="802" y="171" text-anchor="middle" font-size="8.5" fill="#94a3b8">Enrichment</text>
   <text x="846" y="171" font-size="9" fill="#475569">&gt;</text>
   <rect x="854" y="158" width="76" height="18" rx="4" fill="#1e293b" stroke="#6366f1" stroke-width="1"/>
-  <text x="892" y="171" text-anchor="middle" font-size="8.5" font-weight="600" fill="#a5b4fc">Claude AI</text>
+  <text x="892" y="171" text-anchor="middle" font-size="8.5" font-weight="600" fill="#a5b4fc">Copilot AI</text>
 
   <!-- Exit branch text -->
   <text x="535" y="199" text-anchor="middle" font-size="8" fill="#16a34a">no CI files found → exit clean</text>

@@ -44,20 +44,16 @@ If a label is missing or unexpected, the test prints the diff between expected a
 
 ## LLM Analysis Tests (manual)
 
-These test the full pipeline end-to-end: prescreen regex labels + Claude analysis + verdict JSON.
+These test the full pipeline end-to-end: prescreen regex labels + Copilot analysis + verdict JSON.
 
 ### Prerequisites
 
 ```bash
-# Install Claude Code CLI
-npm install -g @anthropic-ai/claude-code
-
-# Set API key (pick one)
-export ANTHROPIC_API_KEY="sk-ant-..."
-# OR for Foundry:
-export ANTHROPIC_FOUNDRY_BASE_URL="https://..."
-export ANTHROPIC_FOUNDRY_API_KEY="..."
-export CLAUDE_CODE_USE_FOUNDRY=1
+# Copilot CLI auth token
+export COPILOT_GITHUB_TOKEN="ghp_..."
+# Optional BYOK provider endpoint (advanced)
+# export COPILOT_PROVIDER_BASE_URL="https://provider.example.com/v1/responses"
+export COPILOT_MODEL="auto"
 ```
 
 ### Run against an example diff
@@ -102,16 +98,30 @@ jq -n \
       prior_commits_to_repo:0, is_org_member:false
     }, diff_excerpt:$diff}' > .cicd-abuse-detector/analysis_bundle.json
 
-# Run Claude analysis
-claude -p "$(cat prompts/analyze-cicd-change.md)
+# Run Copilot analysis via Copilot CLI
+PROMPT_TEXT="$(cat prompts/analyze-cicd-change.md)
 
-Read the analysis bundle at .cicd-abuse-detector/analysis_bundle.json.
-Read the verdict schema at schemas/verdict.schema.json.
-Write your verdict as strict JSON to .cicd-abuse-detector/verdict.json matching the schema.
-Write ONLY the JSON file. No other output." \
-  --model claude-opus-4-6 \
-  --max-turns 5 \
-  --allowedTools "Read,Write"
+Read the analysis bundle below:
+$(cat .cicd-abuse-detector/analysis_bundle.json)
+
+Read the verdict schema below:
+$(cat schemas/verdict.schema.json)
+
+Return only the verdict JSON object that matches the schema.
+Do not include markdown, code fences, or extra text."
+
+COPILOT_GITHUB_TOKEN="$COPILOT_GITHUB_TOKEN" \
+  copilot -p "$PROMPT_TEXT" \
+    --model "${COPILOT_MODEL:-auto}" \
+    --silent \
+    --output-format text \
+    --no-color \
+    --no-custom-instructions \
+    > .cicd-abuse-detector/verdict_raw.txt
+
+cat .cicd-abuse-detector/verdict_raw.txt \
+  | sed -e '1s/^```json[[:space:]]*//' -e '1s/^```[[:space:]]*//' -e '$s/[[:space:]]*```$//' \
+  > .cicd-abuse-detector/verdict.json
 
 # Check the verdict
 jq '.' .cicd-abuse-detector/verdict.json
@@ -176,7 +186,7 @@ Use a dedicated testing repository for integration tests. Create a separate repo
 
 1. Create or clone a testing repository
 2. Copy the three files into the repo (see [Quick Start](../README.md#quick-start))
-3. Add the `ANTHROPIC_API_KEY` or Foundry secrets to the repo settings
+3. Add the `COPILOT_GITHUB_TOKEN` secret to the repo settings
 
 ### Verify outputs
 
@@ -192,6 +202,6 @@ After opening a test PR, check:
 
 ## End-to-end validation in your environment
 
-For a full run through your platform (prescreen, Claude, verdict JSON, optional alerts), use a **fork** or other non-production repository, configure LLM and optional alert secrets, open pull requests that modify CI or config files, and review the **workflow run** (Step Summary, logs) for prescreen labels and verdict JSON.
+For a full run through your platform (prescreen, Copilot, verdict JSON, optional alerts), use a **fork** or other non-production repository, configure LLM and optional alert secrets, open pull requests that modify CI or config files, and review the **workflow run** (Step Summary, logs) for prescreen labels and verdict JSON.
 
 Use `make test` and `make validate` in this repository to catch regressions in **prescreen regex** behavior. They do not exercise the full LLM—run a test PR in CI when you change prompts or heuristics meaningfully.

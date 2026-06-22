@@ -4,7 +4,7 @@ The CI/CD Abuse Detector supports multiple alerting channels: **issue/work item 
 
 ## Slack Notifications
 
-When a suspicious or malicious change is detected, the template sends a Slack notification via incoming webhook. Each alert includes the repository, severity, verdict, actor, and a summary from Claude's analysis. Buttons link directly to the CI run and the corresponding PR/MR.
+When a suspicious or malicious change is detected, the template sends a Slack notification via incoming webhook. Each alert includes the repository, severity, verdict, actor, and a summary from Copilot analysis. Buttons link directly to the CI run and the corresponding PR/MR.
 
 | Platform | Method |
 |----------|--------|
@@ -16,7 +16,7 @@ All three use the same Block Kit structure: header, section with severity/verdic
 
 ## Issue / Work Item Creation
 
-Alert issues or work items are created automatically with structured metadata, severity labels, and the full verdict from Claude.
+Alert issues or work items are created automatically with structured metadata, severity labels, and the full verdict from Copilot analysis.
 
 | Platform | Method | Labels/Tags |
 |----------|--------|-------------|
@@ -51,7 +51,7 @@ Each issue/work item contains a structured breakdown: severity, verdict, actor, 
 
 ## How It Works
 
-1. **Verdict rendered** — Claude produces a JSON verdict with severity, reasons, and evidence
+1. **Verdict rendered** — Copilot analysis produces a JSON verdict with severity, reasons, and evidence
 2. **Threshold checked** — Severity compared against `CI_CD_ABUSE_ALERT_THRESHOLD`
 3. **Issue/work item created** — GitHub Issue, GitLab Issue, or ADO work item (auto-detects Bug or Issue based on process template) with structured body and severity labels
 4. **Slack sent** — Block Kit payload with metadata fields and buttons linking to the run and PR

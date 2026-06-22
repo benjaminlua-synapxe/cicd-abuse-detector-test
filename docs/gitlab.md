@@ -12,19 +12,11 @@ schemas/verdict.schema.json                 → schemas/verdict.schema.json
 
 2. Add CI/CD variables (Settings → CI/CD → Variables):
 
-**LLM authentication (pick one):**
+**LLM authentication:**
 
 | Variable | Masked | Notes |
 |----------|--------|-------|
-| `ANTHROPIC_API_KEY` | Yes | Standard Anthropic API key |
-
-Or, for Foundry (enterprise):
-
-| Variable | Masked | Notes |
-|----------|--------|-------|
-| `ANTHROPIC_FOUNDRY_BASE_URL` | No | Foundry endpoint URL |
-| `ANTHROPIC_FOUNDRY_API_KEY` | Yes | Foundry API key |
-| `CLAUDE_CODE_USE_FOUNDRY` | No | Set to `1` |
+| `COPILOT_GITHUB_TOKEN` | Yes | Copilot CLI auth token used by Copilot analysis |
 
 **Optional integrations:**
 
@@ -43,6 +35,8 @@ Or, for Foundry (enterprise):
 | `CI_CD_ABUSE_ALERT_THRESHOLD` | `high` | Minimum severity to trigger Slack/issue alerts (`low`, `medium`, `high`, `critical`) |
 | `CI_CD_ABUSE_FAIL_ON_SEVERITY` | _(empty — disabled)_ | Fail the pipeline if severity meets or exceeds this level (`low`/`medium`/`high`/`critical`). When empty (default), the detector alerts only and never blocks merges. |
 | `CI_CD_ABUSE_INCLUDE_PUSHES` | `true` | Set to `false` to skip push event analysis |
+| `COPILOT_MODEL` | `auto` | Copilot CLI model ID used for analysis |
+| `COPILOT_PROVIDER_BASE_URL` | _(empty)_ | Optional BYOK provider endpoint for Copilot CLI advanced setups |
 
 4. The job runs on merge requests and pushes that modify CI/CD-relevant files.
 
@@ -52,9 +46,9 @@ Or, for Foundry (enterprise):
 - Full Tier 1 + Tier 2 + Tier 3 path filtering (workflow, build, packaging, dependency, and IDE/tooling files)
 - Per-file diff generation (10k char cap per file)
 - Full prescreen label extraction (shared regex set plus GitLab-specific labels)
-- Claude Code CLI analysis with Read/Write tools only
+- Copilot analysis via Copilot CLI
 - Verdict JSON artifact output (retained 30 days)
-- Model routing env vars for Foundry
+- Configurable model and optional BYOK provider variables for Copilot CLI
 - Extra paths support via `CI_CD_ABUSE_EXTRA_PATHS`
 - Alert threshold checking (`CI_CD_ABUSE_ALERT_THRESHOLD`)
 - Slack notifications via incoming webhook (block kit payload with severity, verdict, summary, and pipeline/MR links)

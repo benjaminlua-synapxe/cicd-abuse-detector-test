@@ -56,9 +56,9 @@
   <!-- Arrow -->
   <line x1="400" y1="336" x2="400" y2="400" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
 
-  <!-- Step 7: Claude Analysis (purple/indigo — LLM) -->
+  <!-- Step 7: Copilot Analysis (purple/indigo — LLM) -->
   <rect x="285" y="402" width="230" height="44" rx="6" fill="#e0e7ff" stroke="#6366f1" stroke-width="2"/>
-  <text x="400" y="420" text-anchor="middle" font-weight="600" fill="#4338ca">Claude Code Analysis</text>
+  <text x="400" y="420" text-anchor="middle" font-weight="600" fill="#4338ca">Copilot Analysis</text>
   <text x="400" y="436" text-anchor="middle" font-size="11" fill="#6366f1">Read bundle → Write verdict.json</text>
 
   <!-- Arrow -->

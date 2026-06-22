@@ -12,19 +12,11 @@ schemas/verdict.schema.json                        → schemas/verdict.schema.js
 
 2. Add pipeline variables (Pipelines → Edit → Variables, or use a variable group):
 
-**LLM authentication (pick one):**
+**LLM authentication:**
 
 | Variable | Secret | Notes |
 |----------|--------|-------|
-| `ANTHROPIC_API_KEY` | Yes | Standard Anthropic API key |
-
-Or, for Foundry (enterprise):
-
-| Variable | Secret | Notes |
-|----------|--------|-------|
-| `ANTHROPIC_FOUNDRY_BASE_URL` | No | Foundry endpoint URL |
-| `ANTHROPIC_FOUNDRY_API_KEY` | Yes | Foundry API key |
-| `CLAUDE_CODE_USE_FOUNDRY` | No | Set to `1` |
+| `COPILOT_GITHUB_TOKEN` | Yes | Copilot CLI auth token used by Copilot analysis |
 
 **Optional integrations:**
 
@@ -42,6 +34,8 @@ Or, for Foundry (enterprise):
 | `CI_CD_ABUSE_ALERT_THRESHOLD` | `high` | Minimum severity to trigger Slack/work item alerts (`low`, `medium`, `high`, `critical`) |
 | `CI_CD_ABUSE_FAIL_ON_SEVERITY` | _(empty — disabled)_ | Fail the pipeline if severity meets or exceeds this level (`low`/`medium`/`high`/`critical`). When empty (default), the detector alerts only and never blocks merges. Set to `high` to block high and critical findings. |
 | `CI_CD_ABUSE_WORK_ITEM_TYPE` | _(auto-detected)_ | Work item type for alerts. Auto-detects `Bug` (Agile/Scrum/CMMI) or `Issue` (Basic) |
+| `COPILOT_MODEL` | `auto` | Copilot CLI model ID used for analysis |
+| `COPILOT_PROVIDER_BASE_URL` | _(empty)_ | Optional BYOK provider endpoint for Copilot CLI advanced setups |
 
 4. The pipeline runs on pull requests and pushes that modify CI/CD-relevant files.
 
@@ -51,9 +45,9 @@ Or, for Foundry (enterprise):
 - Per-file diff generation (10k char cap per file)
 - Full prescreen label extraction (shared regex set plus Azure DevOps–specific labels)
 - Author enrichment (prior commits, backdated commit detection; optional Graph/membership **hint** — the membership call uses the **pipeline** `System.AccessToken`, not the PR author, so it is a weak trust signal, not a direct “is this user a project member” check)
-- Claude Code CLI analysis with Read/Write tools only
+- Copilot analysis via Copilot CLI
 - Verdict JSON published as pipeline artifact
-- Model routing env vars for Foundry
+- Configurable model and optional BYOK provider variables for Copilot CLI
 - Extra paths support via `CI_CD_ABUSE_EXTRA_PATHS`
 - Alert threshold checking (`CI_CD_ABUSE_ALERT_THRESHOLD`)
 - Slack notifications via incoming webhook (Block Kit payload with severity, verdict, summary, and build/PR links)
@@ -110,7 +104,7 @@ Azure DevOps does **not** automatically expose secret variables as environment v
 
 ```yaml
 env:
-  ANTHROPIC_API_KEY: $(ANTHROPIC_API_KEY)
+  COPILOT_GITHUB_TOKEN: $(COPILOT_GITHUB_TOKEN)
 ```
 
 Non-secret pipeline variables are automatically available as environment variables (with dots replaced by underscores and uppercased).
@@ -154,8 +148,7 @@ variables:
   - group: cicd-abuse-detector-secrets
 
 # In the variable group, link to Key Vault secrets:
-# ANTHROPIC-FOUNDRY-API-KEY → mapped as ANTHROPIC_FOUNDRY_API_KEY
-# ANTHROPIC-API-KEY → mapped as ANTHROPIC_API_KEY
+# COPILOT-GITHUB-TOKEN → mapped as COPILOT_GITHUB_TOKEN
 ```
 
 Note: Key Vault secret names use hyphens; map them to underscore-based pipeline variable names in the variable group configuration.

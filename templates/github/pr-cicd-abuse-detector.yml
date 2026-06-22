@@ -456,7 +456,7 @@ jobs:
 
           if [ -z "$SIGNALS" ]; then
             SIGNALS="none"
-            echo "::notice::No pre-screen signals detected. Claude will still analyze the diffs."
+            echo "::notice::No pre-screen signals detected. Copilot will still analyze the diffs."
           else
             echo "::notice::Detected signals: $SIGNALS"
           fi
@@ -542,27 +542,27 @@ jobs:
         with:
           node-version: '22'
 
-      # ── Step 6: Install Claude Code CLI ───────────────────────────────
-      - name: Install Claude Code CLI
+      # ── Step 6: Install Copilot CLI ───────────────────────────────────
+      - name: Install Copilot CLI
         if: steps.gather.outputs.has_interesting == 'true'
-        run: npm install -g @anthropic-ai/claude-code@2
+        run: npm install -g @github/copilot@1
 
-      # ── Step 7: Analyze with Claude ───────────────────────────────────
-      - name: Analyze with Claude
+      # ── Step 7: Analyze with Copilot CLI ──────────────────────────────
+      - name: Analyze with Copilot
         if: steps.gather.outputs.has_interesting == 'true'
         env:
-          # Foundry (enterprise) — set these for Foundry:
-          ANTHROPIC_FOUNDRY_BASE_URL: ${{ secrets.ANTHROPIC_FOUNDRY_BASE_URL }}
-          ANTHROPIC_FOUNDRY_API_KEY: ${{ secrets.ANTHROPIC_FOUNDRY_API_KEY }}
-          CLAUDE_CODE_USE_FOUNDRY: ${{ secrets.ANTHROPIC_FOUNDRY_API_KEY && '1' || '' }}
-          # Model routing:
-          ANTHROPIC_DEFAULT_OPUS_MODEL: claude-opus-4-6
-          ANTHROPIC_DEFAULT_SONNET_MODEL: claude-sonnet-4-6
-          ANTHROPIC_DEFAULT_HAIKU_MODEL: claude-haiku-4-5
-          # Standard API — set this for direct Anthropic API:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+          COPILOT_MODEL: ${{ vars.COPILOT_MODEL || 'auto' }}
+          COPILOT_PROVIDER_BASE_URL: ${{ vars.COPILOT_PROVIDER_BASE_URL }}
         run: |
           set -euo pipefail
+
+          AUTH_TOKEN="${COPILOT_GITHUB_TOKEN:-${GITHUB_TOKEN:-}}"
+          if [ -z "$AUTH_TOKEN" ]; then
+            echo "::error::Missing auth token for Copilot CLI (set COPILOT_GITHUB_TOKEN or provide GITHUB_TOKEN)"
+            exit 1
+          fi
 
           # Read prompt and schema from base branch to prevent attacker from
           # neutering analysis by modifying these files in their PR.
@@ -572,16 +572,38 @@ jobs:
           TRUSTED_PROMPT=$(git show "$DIFF_BASE":prompts/analyze-cicd-change.md 2>/dev/null || cat prompts/analyze-cicd-change.md)
           git show "$DIFF_BASE":schemas/verdict.schema.json > .cicd-abuse-detector/trusted_schema.json 2>/dev/null \
             || cp schemas/verdict.schema.json .cicd-abuse-detector/trusted_schema.json
+          PROMPT_TEXT="${TRUSTED_PROMPT}
 
-          claude -p "${TRUSTED_PROMPT}
+          Read the analysis bundle below:
+          $(cat .cicd-abuse-detector/analysis_bundle.json)
 
-          Read the analysis bundle at .cicd-abuse-detector/analysis_bundle.json.
-          Read the verdict schema at .cicd-abuse-detector/trusted_schema.json.
-          Write your verdict as strict JSON to .cicd-abuse-detector/verdict.json matching the schema.
-          Write ONLY the JSON file. No other output." \
-            --model claude-opus-4-6 \
-            --max-turns 5 \
-            --allowedTools "Read,Write"
+          Read the verdict schema below:
+          $(cat .cicd-abuse-detector/trusted_schema.json)
+
+          Return only the verdict JSON object that matches the schema.
+          Do not include markdown, code fences, or extra text."
+
+          if ! COPILOT_GITHUB_TOKEN="$AUTH_TOKEN" \
+            copilot -p "$PROMPT_TEXT" \
+              --model "${COPILOT_MODEL:-auto}" \
+              --silent \
+              --output-format text \
+              --no-color \
+              --no-custom-instructions \
+              > .cicd-abuse-detector/verdict_raw.txt; then
+            echo "::error::Copilot CLI analysis failed"
+            exit 1
+          fi
+
+          cat .cicd-abuse-detector/verdict_raw.txt \
+            | sed -e '1s/^```json[[:space:]]*//' -e '1s/^```[[:space:]]*//' -e '$s/[[:space:]]*```$//' \
+            > .cicd-abuse-detector/verdict.json
+
+          if ! jq empty .cicd-abuse-detector/verdict.json >/dev/null 2>&1; then
+            echo "::error::Copilot response was not valid JSON"
+            cat .cicd-abuse-detector/verdict_raw.txt || true
+            exit 1
+          fi
 
       # ── Step 8: Render summary and set outputs ────────────────────────
       - name: Render summary
@@ -597,7 +619,7 @@ jobs:
             echo "verdict=error" >> "$GITHUB_OUTPUT"
             {
               echo "summary<<CICD_ABUSE_VERDICT_DELIM_7f3a"
-              echo "Claude did not produce valid verdict JSON. Manual review required."
+              echo "Copilot did not produce valid verdict JSON. Manual review required."
               echo "CICD_ABUSE_VERDICT_DELIM_7f3a"
             } >> "$GITHUB_OUTPUT"
             exit 1

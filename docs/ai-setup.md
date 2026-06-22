@@ -1,6 +1,6 @@
 # AI-Assisted Setup & Testing
 
-This guide explains how to use AI coding assistants (Claude Code, Cursor, etc.) with platform CLIs to set up and test the CI/CD Abuse Detector on each supported platform.
+This guide explains how to use AI coding assistants (Copilot Chat, Cursor, etc.) with platform CLIs to set up and test the CI/CD Abuse Detector on each supported platform.
 
 The idea is simple: authenticate the CLI tools, give your AI assistant access, and let it handle the copy, configure, push, test, and debug cycle.
 
@@ -54,7 +54,7 @@ git clone git@ssh.dev.azure.com:v3/YOUR_ORG/YOUR_PROJECT/cicd-abuse-detector-tes
 
 ### 4. API Credentials
 
-You'll need an Anthropic API key (or Foundry credentials) and optionally a Slack webhook URL. Have these ready — your AI assistant will set them as secrets/variables.
+You'll need a Copilot CLI auth token and optionally a Slack webhook URL. Have these ready — your AI assistant will set them as secrets/variables.
 
 ## Verify CLI Access
 
@@ -80,8 +80,8 @@ Once CLI access is verified, tell your AI assistant to set up and test the detec
 ### GitHub (`gh`)
 
 1. **Copy files** — Copies `templates/github/pr-cicd-abuse-detector.yml`, `prompts/analyze-cicd-change.md`, and `schemas/verdict.schema.json` into the test repo
-2. **Set secrets** — Uses `gh secret set` for `ANTHROPIC_FOUNDRY_BASE_URL`, `ANTHROPIC_FOUNDRY_API_KEY`, `SLACK_WEBHOOK_URL`
-3. **Set variables** — Uses `gh variable set` for `CI_CD_ABUSE_ALERT_THRESHOLD`, `CLAUDE_CODE_USE_FOUNDRY`
+2. **Set secrets** — Uses `gh secret set` for `COPILOT_GITHUB_TOKEN`, `SLACK_WEBHOOK_URL`
+3. **Set variables** — Uses `gh variable set` for `CI_CD_ABUSE_ALERT_THRESHOLD` and optionally `COPILOT_MODEL`, `COPILOT_PROVIDER_BASE_URL`
 4. **Push to main** — Initial commit with all files
 5. **Create test branch** — Adds a malicious workflow fixture (e.g., secret exfil via curl)
 6. **Open PR** — Uses `gh pr create` to trigger the detector
@@ -114,11 +114,11 @@ Once CLI access is verified, tell your AI assistant to set up and test the detec
 
 ### Full setup from scratch
 
-> Set up the CI/CD Abuse Detector in my test repo at [REPO_PATH]. The Anthropic Foundry base URL is [URL] and the API key is [KEY]. My Slack webhook is [WEBHOOK]. Copy the template files, set all secrets and variables, push to main, then create a test PR with a malicious workflow change and verify the detector runs successfully.
+> Set up the CI/CD Abuse Detector in my test repo at [REPO_PATH]. My Copilot CLI auth token is [KEY]. My Slack webhook is [WEBHOOK]. Copy the template files, set all secrets and variables, push to main, then create a test PR with a malicious workflow change and verify the detector runs successfully.
 
 ### Test a specific platform
 
-> I've already set up the GitHub version. Now set up GitLab CI in my repo at [PATH]. Use `glab` CLI to set CI/CD variables and create a test MR. The Foundry credentials are the same as GitHub.
+> I've already set up the GitHub version. Now set up GitLab CI in my repo at [PATH]. Use `glab` CLI to set CI/CD variables and create a test MR. Use the same Copilot CLI auth token from GitHub setup.
 
 ### Debug a failing pipeline
 

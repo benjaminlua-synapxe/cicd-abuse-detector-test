@@ -115,8 +115,8 @@ steps:
       versionSpec: '22.x'
     displayName: 'Setup Node.js'
 
-  - script: npm install -g @anthropic-ai/claude-code@2
-    displayName: 'Install Claude Code CLI'
+  - script: npm install -g @github/copilot@1
+    displayName: 'Install Copilot CLI'
 
   - script: |
       set -euo pipefail
@@ -531,7 +531,7 @@ steps:
 
       if [ -z "$SIGNALS" ]; then
         SIGNALS="none"
-        echo "No pre-screen signals detected. Claude will still analyze the diffs."
+        echo "No pre-screen signals detected. Copilot will still analyze the diffs."
       else
         echo "Detected signals: $SIGNALS"
       fi
@@ -560,7 +560,7 @@ steps:
           truncated_files:$truncated_files,
           author_profile:$author_profile, diff_excerpt:$diff}' > .cicd-abuse-detector/analysis_bundle.json
 
-      # ── Analyze with Claude ──
+      # ── Analyze with Copilot CLI ──
       # Read prompt and schema from base branch to prevent attacker from
       # neutering analysis by modifying these files in their PR.
       DIFF_BASE=$(cat .cicd-abuse-detector/diff_base.txt)
@@ -568,15 +568,48 @@ steps:
       git show "$DIFF_BASE":schemas/verdict.schema.json > .cicd-abuse-detector/trusted_schema.json 2>/dev/null \
         || cp schemas/verdict.schema.json .cicd-abuse-detector/trusted_schema.json
 
-      claude -p "${TRUSTED_PROMPT}
+      COPILOT_TOKEN_VAL="${COPILOT_GITHUB_TOKEN:-}"
+      [[ "$COPILOT_TOKEN_VAL" == *'$('* ]] && COPILOT_TOKEN_VAL=""
+      if [ -z "$COPILOT_TOKEN_VAL" ]; then
+        echo "##vso[task.logissue type=error]Missing required variable: COPILOT_GITHUB_TOKEN"
+        exit 1
+      fi
 
-      Read the analysis bundle at .cicd-abuse-detector/analysis_bundle.json.
-      Read the verdict schema at .cicd-abuse-detector/trusted_schema.json.
-      Write your verdict as strict JSON to .cicd-abuse-detector/verdict.json matching the schema.
-      Write ONLY the JSON file. No other output." \
-        --model claude-opus-4-6 \
-        --max-turns 5 \
-        --allowedTools "Read,Write"
+      MODELS_MODEL="${COPILOT_MODEL:-auto}"
+      [[ "$MODELS_MODEL" == *'$('* ]] && MODELS_MODEL="auto"
+
+      PROMPT_TEXT="${TRUSTED_PROMPT}
+
+      Read the analysis bundle below:
+      $(cat .cicd-abuse-detector/analysis_bundle.json)
+
+      Read the verdict schema below:
+      $(cat .cicd-abuse-detector/trusted_schema.json)
+
+      Return only the verdict JSON object that matches the schema.
+      Do not include markdown, code fences, or extra text."
+
+      if ! COPILOT_GITHUB_TOKEN="$COPILOT_TOKEN_VAL" \
+        copilot -p "$PROMPT_TEXT" \
+          --model "$MODELS_MODEL" \
+          --silent \
+          --output-format text \
+          --no-color \
+          --no-custom-instructions \
+          > .cicd-abuse-detector/verdict_raw.txt; then
+        echo "##vso[task.logissue type=error]Copilot CLI analysis failed"
+        exit 1
+      fi
+
+      cat .cicd-abuse-detector/verdict_raw.txt \
+        | sed -e '1s/^```json[[:space:]]*//' -e '1s/^```[[:space:]]*//' -e '$s/[[:space:]]*```$//' \
+        > .cicd-abuse-detector/verdict.json
+
+      if ! jq empty .cicd-abuse-detector/verdict.json >/dev/null 2>&1; then
+        echo "##vso[task.logissue type=error]Copilot response was not valid JSON"
+        cat .cicd-abuse-detector/verdict_raw.txt || true
+        exit 1
+      fi
 
       # ── Validate verdict ──
       if ! jq empty .cicd-abuse-detector/verdict.json 2>/dev/null; then
@@ -758,16 +791,10 @@ steps:
       fi
     displayName: 'Gather, enrich, and analyze'
     env:
-      # Foundry (enterprise):
-      ANTHROPIC_FOUNDRY_BASE_URL: $(ANTHROPIC_FOUNDRY_BASE_URL)
-      ANTHROPIC_FOUNDRY_API_KEY: $(ANTHROPIC_FOUNDRY_API_KEY)
-      CLAUDE_CODE_USE_FOUNDRY: $(CLAUDE_CODE_USE_FOUNDRY)
-      # Model routing:
-      ANTHROPIC_DEFAULT_OPUS_MODEL: claude-opus-4-6
-      ANTHROPIC_DEFAULT_SONNET_MODEL: claude-sonnet-4-6
-      ANTHROPIC_DEFAULT_HAIKU_MODEL: claude-haiku-4-5
-      # Standard API:
-      ANTHROPIC_API_KEY: $(ANTHROPIC_API_KEY)
+      # Copilot CLI:
+      COPILOT_GITHUB_TOKEN: $(COPILOT_GITHUB_TOKEN)
+      COPILOT_MODEL: $(COPILOT_MODEL)
+      COPILOT_PROVIDER_BASE_URL: $(COPILOT_PROVIDER_BASE_URL)
       # Alerting:
       SLACK_WEBHOOK_URL: $(SLACK_WEBHOOK_URL)
       # Elastic (optional):

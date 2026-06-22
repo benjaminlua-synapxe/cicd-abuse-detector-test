@@ -12,7 +12,7 @@ All CI platform templates aim for identical detection capabilities. This documen
 | Author enrichment (account age, membership, prior commits) | GitHub Users/Members API | GitLab Users/Members API | Git log; ADO Graph/membership **hint** uses the **pipeline** `System.AccessToken` (weak signal — not a direct “PR author is a project member” check) |
 | Backdated commit detection | Yes | Yes | Yes |
 | Per-file diff processing (10k cap) | Yes | Yes | Yes |
-| Claude Code CLI analysis | Yes | Yes | Yes |
+| Copilot (Copilot CLI) analysis | Yes | Yes | Yes |
 | Alert threshold | `CI_CD_ABUSE_ALERT_THRESHOLD` | `CI_CD_ABUSE_ALERT_THRESHOLD` | `CI_CD_ABUSE_ALERT_THRESHOLD` |
 | Slack notifications (Block Kit) | `slackapi/slack-github-action` | `curl` to webhook | `curl` to webhook |
 | Issue/work item creation | `gh issue create` | GitLab REST API | ADO Work Items API (auto-detects Bug or Issue) |
@@ -36,7 +36,7 @@ Each platform has minor implementation differences dictated by the CI system:
 The following are identical across all platforms:
 
 1. **Prescreen labels** — Same `check_signal()` regex set (plus tail checks where applicable) across all platforms; labels are enrichment for the LLM, not standalone detection
-2. **Analysis bundle schema** — Same JSON structure passed to Claude
+2. **Analysis bundle schema** — Same JSON structure passed to Copilot analysis
 3. **LLM prompt** — Same `prompts/analyze-cicd-change.md` and `schemas/verdict.schema.json`
 4. **Verdict schema** — Same JSON output format
 5. **Severity ranking** — Same `severity_rank()` function (critical=4, high=3, medium=2, low=1)

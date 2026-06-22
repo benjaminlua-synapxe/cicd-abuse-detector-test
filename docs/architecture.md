@@ -16,31 +16,31 @@ A global `head -c 30000` is a bypass vector: an attacker adds a large benign Doc
 
 The workflow attaches **prescreen labels** to the analysis bundle: regex-derived hints (common abuse shapes) plus **metadata** (first-time contributor, non-org member, backdated commits). These are **enrichment for the LLM**, not an IOC list and not a substitute for reading the diff. They are **incomplete by design** — any fixed pattern can be evaded — so the product does not rely on “signal coverage” alone.
 
-Claude **always** receives and analyzes the diffs, even when no prescreen labels fire, so novel attacks still get a full review. Labels help focus attention and calibrate confidence. Which files enter analysis depends on the path filter in the template; teams can extend it with `CI_CD_ABUSE_EXTRA_PATHS` (see [GitHub setup](github.md)).
+Copilot **always** receives and analyzes the diffs, even when no prescreen labels fire, so novel attacks still get a full review. Labels help focus attention and calibrate confidence. Which files enter analysis depends on the path filter in the template; teams can extend it with `CI_CD_ABUSE_EXTRA_PATHS` (see [GitHub setup](github.md)).
 
-### Claude Code CLI
+### Copilot via Copilot CLI
 
-The workflow uses the Claude Code CLI (`@anthropic-ai/claude-code`) rather than raw API calls. This provides:
-- Automatic Foundry and standard API key authentication
-- Built-in retries and rate limit handling
-- `--allowedTools "Read,Write"` restricts Claude to file I/O only — no shell access, no network access
-- Consistent with team patterns
+The workflow calls Copilot CLI directly in non-interactive mode and validates responses with `jq`. This provides:
+- Provider-neutral API-based model access
+- Strict JSON response handling before downstream processing
+- Simple secret management via a single `COPILOT_GITHUB_TOKEN`
+- Consistent behavior across GitHub, GitLab, and Azure DevOps templates
 
 ### Shell Injection Prevention
 
-All GitHub context expressions and LLM-derived outputs are passed through `env:` mappings, never interpolated directly in `run:` blocks via `${{ }}`. This prevents shell injection even if Claude is prompt-injected into writing malicious content in the verdict.
+All GitHub context expressions and LLM-derived outputs are passed through `env:` mappings, never interpolated directly in `run:` blocks via `${{ }}`. This prevents shell injection even if the model is prompt-injected into writing malicious content in the verdict.
 
 ### Workflow Self-Security
 
-The detector itself holds secrets (`ANTHROPIC_*`, `SLACK_WEBHOOK_URL`, `GITHUB_TOKEN`). It is designed to be safe by default:
+The detector itself holds secrets (`COPILOT_GITHUB_TOKEN`, `SLACK_WEBHOOK_URL`, `GITHUB_TOKEN`). It is designed to be safe by default:
 
 | Risk | Mitigation |
 |------|------------|
 | Attacker-controlled PR accesses secrets | Uses `pull_request` (not `pull_request_target`) — fork PRs don't get secrets |
 | Attacker modifies the workflow in their PR | Fork PRs don't get access to repo secrets; the attacker's modified workflow runs without credentials |
 | Attacker modifies the analysis prompt or schema in their PR | Prompt and schema are read from the **base branch** via `git show $BASE_SHA:path`, not from the working tree. Even if the attacker neuters the prompt, the trusted version is used. A `prompt_file_modified` signal fires to alert on this. |
-| Secrets exposed to all steps | Anthropic credentials are step-scoped on the Claude analysis step; `SLACK_WEBHOOK_URL` and `GH_TOKEN` are step-scoped to their respective steps |
-| Claude Code leaks secrets | `--allowedTools "Read,Write"` — no Bash, no network |
+| Secrets exposed to all steps | Copilot CLI credentials are step-scoped on the Copilot analysis step; `SLACK_WEBHOOK_URL` and `GH_TOKEN` are step-scoped to their respective steps |
+| Model output leaks secrets | Verdict JSON is validated before use and never executed as code |
 | LLM output used in shell injection | All verdict outputs pass through `env:` mappings, never `${{ }}` in `run:` |
 | Workflow permissions too broad | Minimal: `contents: read`, `pull-requests: read`, `issues: write` |
 

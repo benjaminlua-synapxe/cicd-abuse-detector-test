@@ -2,7 +2,7 @@
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-GitHub%20%7C%20GitLab%20%7C%20Azure%20DevOps-black)](docs/parity.md)
-[![LLM](https://img.shields.io/badge/LLM-Claude-blueviolet?logo=anthropic)](https://docs.anthropic.com/en/docs/claude-code)
+[![LLM](https://img.shields.io/badge/LLM-Copilot-blue?logo=github)](https://docs.github.com/en/copilot)
 [![Detection](https://img.shields.io/badge/detection-LLM%20%2B%20enrichment%20metadata-blue)](#how-it-works)
 
 Drop-in CI templates that use an LLM to detect suspicious changes to CI/CD pipelines, workflows, and automation configurations. Built to catch a common attack chain: **stolen developer credentials → modified workflow → harvested CI secrets**.
@@ -44,18 +44,11 @@ schemas/verdict.schema.json                 → schemas/verdict.schema.json
 
 ### 2. Add repository secrets
 
-**LLM authentication (pick one):**
+**LLM authentication:**
 
 | Secret | Notes |
 |--------|-------|
-| `ANTHROPIC_API_KEY` | Standard Anthropic API key |
-
-Or, for Foundry (enterprise):
-
-| Secret | Notes |
-|--------|-------|
-| `ANTHROPIC_FOUNDRY_BASE_URL` | Foundry endpoint URL |
-| `ANTHROPIC_FOUNDRY_API_KEY` | Foundry API key |
+| `COPILOT_GITHUB_TOKEN` | Copilot CLI auth token used by Copilot analysis |
 
 **Optional integrations:**
 
@@ -74,6 +67,8 @@ Or, for Foundry (enterprise):
 | `CI_CD_ABUSE_FAIL_ON_SEVERITY` | _(empty — disabled)_ | Fail the PR/pipeline at this severity or above (`low`/`medium`/`high`/`critical`). When empty (default), the detector alerts only and never blocks merges. |
 | `CI_CD_ABUSE_INCLUDE_PUSHES` | `true` | Analyze direct pushes to main/master |
 | `CI_CD_ABUSE_EXTRA_PATHS` | _(empty)_ | Comma-separated path fragments so non-default layouts still trigger analysis ([details](docs/github.md#extra-path-patterns)) |
+| `COPILOT_MODEL` | `auto` | Copilot CLI model ID used for analysis |
+| `COPILOT_PROVIDER_BASE_URL` | _(empty)_ | Optional BYOK provider endpoint for Copilot CLI advanced setups |
 
 ### 4. Done
 
@@ -86,11 +81,11 @@ For a **visual pipeline overview**, see [`docs/architecture.svg`](docs/architect
 1. **Filter** — Changed files are matched against CI/CD, build, release, and packaging paths.
 2. **Per-file diff** — Each file is diffed individually and capped at 10k chars, reducing bypass via large benign padding.
 3. **Prescreen enrichment** — Regex- and metadata-derived **labels** add context for the model; the LLM still analyzes the full diff.
-4. **LLM analysis** — Claude analyzes the diffs against a credential-harvesting-focused threat model.
+4. **LLM analysis** — Copilot (via Copilot CLI) analyzes the diffs against a credential-harvesting-focused threat model.
 5. **Alert** — Step summary, optional issues, Slack, and optional Elasticsearch verdict shipping when severity meets threshold.
 6. **Fail gate** — Optionally block the PR when severity exceeds a configured threshold.
 
-**In the templates themselves**, pre-processing is **bash + jq + grep**. The only tool installed in CI for analysis is the Claude Code CLI (via Node). There is **no** Python in the *runtime* path for the published workflows.
+**In the templates themselves**, pre-processing is **bash + jq + grep** and analysis is executed via Copilot CLI in non-interactive mode. There is **no** Python in the *runtime* path for the published workflows.
 
 ## Documentation
 
