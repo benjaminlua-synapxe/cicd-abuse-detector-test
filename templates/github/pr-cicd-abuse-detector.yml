@@ -513,6 +513,10 @@ jobs:
           # ── Build analysis bundle ──
           TARGET_BRANCH=$(cat .cicd-abuse-detector/target_branch.txt 2>/dev/null || echo "")
           ANALYSIS_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+          # Pre-process files to avoid broken pipe with large diffs
+          jq -R -s 'split("\n") | map(select(. != ""))' .cicd-abuse-detector/interesting_files.txt > .cicd-abuse-detector/files.json
+
           jq -n \
             --arg repo "$REPO" \
             --arg actor "$ACTOR" \
@@ -523,17 +527,17 @@ jobs:
             --arg signals "$SIGNALS" \
             --arg full_file_signals "$FULL_FILE_SIGNALS" \
             --arg analysis_date "$ANALYSIS_DATE" \
-            --arg diff "$(cat .cicd-abuse-detector/relevant.diff)" \
-            --argjson files "$(jq -R -s 'split("\n") | map(select(. != ""))' .cicd-abuse-detector/interesting_files.txt)" \
-            --argjson author_profile "$(cat .cicd-abuse-detector/author_profile.json)" \
-            --argjson truncated_files "$(cat .cicd-abuse-detector/truncated_files.json)" \
+            --rawfile diff .cicd-abuse-detector/relevant.diff \
+            --slurpfile files .cicd-abuse-detector/files.json \
+            --slurpfile author_profile .cicd-abuse-detector/author_profile.json \
+            --slurpfile truncated_files .cicd-abuse-detector/truncated_files.json \
             '{repo:$repo, actor:$actor, event_name:$event, ref_name:$ref,
               target_branch:$target_branch, change_path:$change_path,
               analysis_date:$analysis_date,
-              interesting_files:$files, signals:$signals,
+              interesting_files:$files[0], signals:$signals,
               full_file_signals:$full_file_signals,
-              truncated_files:$truncated_files,
-              author_profile:$author_profile, diff_excerpt:$diff}' > .cicd-abuse-detector/analysis_bundle.json
+              truncated_files:$truncated_files[0],
+              author_profile:$author_profile[0], diff_excerpt:$diff}' > .cicd-abuse-detector/analysis_bundle.json
 
       # ── Step 5: Setup Node.js ─────────────────────────────────────────
       - name: Setup Node.js
