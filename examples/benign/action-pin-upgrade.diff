@@ -1,5 +1,5 @@
 diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
-index abc1234..def5678 100644
+index e59b084..e39c097 100644
 --- a/.github/workflows/ci.yml
 +++ b/.github/workflows/ci.yml
 @@ -11,9 +11,9 @@ jobs:
@@ -23,3 +23,4 @@ index abc1234..def5678 100644
          with:
            name: dependency-manifest
            path: dependencies.txt
+\ No newline at end of file
