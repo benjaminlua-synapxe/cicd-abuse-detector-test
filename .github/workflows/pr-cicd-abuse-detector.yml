@@ -565,9 +565,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          AUTH_TOKEN="${COPILOT_GITHUB_TOKEN:-}}"
+          AUTH_TOKEN="${COPILOT_GITHUB_TOKEN:-${GITHUB_TOKEN:-}}"
           if [ -z "$AUTH_TOKEN" ]; then
-            echo "::error::Missing auth token for Copilot CLI (GitHub App tokens are not supported)"
+            echo "::error::Missing auth token for Copilot CLI (set COPILOT_GITHUB_TOKEN or provide GITHUB_TOKEN)"
             exit 1
           fi
 
