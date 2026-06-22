@@ -554,15 +554,6 @@ jobs:
         if: steps.gather.outputs.has_interesting == 'true'
         run: npm install -g @github/copilot@1
 
-      - name: Debug token
-        run: |
-          if [ -z "${COPILOT_GITHUB_TOKEN:-}" ]; then
-            echo "COPILOT_GITHUB_TOKEN is empty"
-            exit 1
-          fi
-
-          echo "Token length: ${#COPILOT_GITHUB_TOKEN}"
-
       # ── Step 7: Analyze with Copilot CLI ──────────────────────────────
       - name: Analyze with Copilot
         if: steps.gather.outputs.has_interesting == 'true'
@@ -718,6 +709,13 @@ jobs:
           VERDICT: ${{ steps.verdict.outputs.verdict }}
           SUMMARY: ${{ steps.verdict.outputs.summary }}
         run: |
+          # Skip if Issues are disabled
+          if ! gh repo view "$GITHUB_REPOSITORY" --json hasIssues --jq '.hasIssues' | grep -qx true; then
+            echo "::notice::Repository issues are disabled. Skipping alert issue creation."
+            echo "issue_url=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          
           # Build PR row for issue body (empty if not a PR event)
           PR_ROW=""
           if [ -n "${PR_NUMBER:-}" ]; then
